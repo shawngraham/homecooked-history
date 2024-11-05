@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chronicling America Search</title>
+    <style>
+        /* Simple spinner styles */
+        .spinner {
+            display: none; /* Hidden by default */
+            margin: 10px auto;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top-color: #3498db;
+            width: 40px;
+            height: 40px;
+            animation: spin 0.7s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Chronicling America Search</h1>
+<p style="background-color: #f0f0f0; border-radius: 10px; padding: 15px; border: 1px solid #ccc;">
+    This is a small demonstration of the same functionality as in this
+    <a href="https://colab.research.google.com/github/o-date/working-with-apis/blob/master/notebooks/chronicling%20america%20api.ipynb">Colab notebook</a>
+    which permits the user to query the <a href="https://chroniclingamerica.loc.gov/">Chronicling America</a> API.<br><br>
+    It was created by passing the python in that notebook through gpt4o with the prompt, "Create a one-page html that enables a user to enter a search term, see results, and download either json or csv. To do this, translate the following python into javascript"<br><br>
+    This is part of my <a href="https://electricarchaeology.ca/2024/09/27/home-cooked-software-for-the-archaeologist-or-historian/">Home Cooked Software</a> series.<br><br> Shawn Graham
+</p>
+    <input type="text" id="searchTerm" placeholder="Enter search term">
+    <button onclick="fetchSynonyms()">Search</button>
+    <label for="numPages">Number of Pages to Fetch:</label>
+    <input type="number" id="numPages" value="1" min="1" max="100" />
+    <div id="spinner" class="spinner"></div> <!-- Spinner element -->
+    <h3>Search URL</h3>
+    <p id="searchUrl"></p> <!-- This is where the URL will be displayed -->
+    <h2>Results</h2>
+    <button onclick="downloadData('json')">Download JSON</button>
+    <button onclick="downloadData('csv')">Download CSV</button>
+    <small><br> note: the resulting csv uses tabs as a field delimiter.</small>
+    <pre id="results"></pre>
+
+    <script>
+        let data = null;
+
+        function fetchSynonyms() {
+            const searchTerm = document.getElementById('searchTerm').value;
+            const thesaurusUrl = `https://api.datamuse.com/words?rel_syn=${searchTerm}`;
+
+            fetch(thesaurusUrl)
+                .then(response => response.json())
+                .then(synonyms => {
+                    const maxSynonyms = 2;
+                    const limitedSynonyms = synonyms.slice(0, maxSynonyms).map(synonym => synonym.word);
+                    limitedSynonyms.push(searchTerm); // include the original term
+                    performSearch(limitedSynonyms);
+                })
+                .catch(error => {
+                    console.error('Error fetching synonyms:', error);
+                    performSearch([searchTerm]); // Fallback to the original term if synonyms cannot be fetched
+                });
+        }
+
+        function performSearch(terms) {
+            const apiSearchUrl = 'https://chroniclingamerica.loc.gov/search/pages/results/';
+            const combinedTerms = terms.join(' OR ');
+            const params = new URLSearchParams({
+                proxtext: combinedTerms,
+                format: 'json'
+            });
+
+            const numPages = parseInt(document.getElementById('numPages').value, 10) || 1;
+            const itemsPerPage = 20; // default API items per page
+            const allResults = [];
+            let pagesFetched = 0;
+
+            document.getElementById('searchUrl').textContent = `Search URL: ${apiSearchUrl}?${params.toString()}`;
+
+            function fetchPage(page) {
+                params.set('page', page);
+
+                fetch(`${apiSearchUrl}?${params.toString()}`)
+                    .then(response => {
+                        if (response.ok) {
+                            return response.json();
+                        } else {
+                            throw new Error(`Error: ${response.status}`);
+                        }
+                    })
+                    .then(jsonData => {
+                        allResults.push(...jsonData.items);
+                        pagesFetched++;
+
+                        // Determine if more pages should be fetched
+                        const totalPages = Math.ceil(jsonData.totalItems / itemsPerPage);
+                        if (pagesFetched < numPages && page < totalPages) {
+                            fetchPage(page + 1); // Fetch next page
+                        } else {
+                            data = { items: allResults }; // Store all aggregated results for download
+                            displayResults(data); // Display all aggregated results
+                            displaySpinner(false); // Hide spinner
+                        }
+                    })
+                    .catch(error => {
+                        console.error('There was a problem:', error);
+                        displaySpinner(false); // Hide spinner on error
+                    });
+            }
+
+            // Start fetching pages
+            displaySpinner(true); // Show spinner
+            fetchPage(1);
+        }
+
+        function displayResults(data) {
+            const formattedData = JSON.stringify(data, null, 2);
+            document.getElementById('results').textContent = formattedData;
+        }
+
+        function downloadData(format) {
+            if (data === null || data.items.length === 0) {
+                alert('No data to download. Please perform a search first.');
+                return;
+            }
+
+            let content = '';
+            if (format === 'json') {
+                content = JSON.stringify(data, null, 2);
+                downloadFile(content, 'data.json', 'application/json');
+            } else if (format === 'csv') {
+                const csvContent = convertJsonToCsv(data);
+                downloadFile(csvContent, 'data.csv', 'text/csv');
+            }
+        }
+
+        function downloadFile(content, fileName, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function convertJsonToCsv(jsonData) {
+            const items = jsonData.items;
+            if (!items || items.length === 0) {
+                return '';
+            }
+
+            const headers = Object.keys(items[0]);
+            const csvRows = items.map(item => headers.map(header => JSON.stringify(item[header], replacer)).join('\t'));
+            return [headers.join('\t'), ...csvRows].join('\n');
+        }
+
+        function replacer(key, value) {
+            return value === null ? '' : value;
+        }
+
+        function displaySpinner(show) {
+            const spinner = document.getElementById('spinner');
+            spinner.style.display = show ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>
