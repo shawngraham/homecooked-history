@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nearby Wikipedia Articles</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script>
+    $(document).ready(function() {
+      var radius = 5000; // Default search radius in meters
+      var map;
+      var markers = L.layerGroup();
+
+      // Function to fetch and display nearby Wikipedia articles
+      function fetchArticles() {
+        // Check if geolocation is supported
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(function(position) {
+            var lat = position.coords.latitude;
+            var lon = position.coords.longitude;
+
+            // Show the spinner
+            $('#spinner').show();
+
+            // Construct the API URL
+            var apiUrl = 'https://en.wikipedia.org/w/api.php?action=query&list=geosearch&gsradius=' + radius + '&gscoord=' + lat + '|' + lon + '&format=json';
+
+            // Make the API request
+            $.ajax({
+              url: apiUrl,
+              dataType: 'jsonp',
+              success: function(data) {
+                var articles = data.query.geosearch;
+
+                // Hide the spinner
+                $('#spinner').hide();
+
+                // Display the articles
+                var output = '<h2>Nearby Wikipedia Articles</h2>';
+                if (articles.length > 0) {
+                  output += '<ul>';
+                  for (var i = 0; i < articles.length; i++) {
+                    var article = articles[i];
+                    output += '<li><a href="https://en.wikipedia.org/wiki/' + encodeURIComponent(article.title) + '" target="_blank">' + article.title + '</a></li>';
+                  }
+                  output += '</ul>';
+                } else {
+                  output += '<p>No nearby articles found.</p>';
+                }
+
+                $('#result').html(output);
+
+                // Clear existing markers
+                markers.clearLayers();
+
+                // Add markers for each article
+                for (var i = 0; i < articles.length; i++) {
+                  var article = articles[i];
+                  var marker = L.marker([article.lat, article.lon]);
+                  marker.bindPopup('<a href="https://en.wikipedia.org/wiki/' + encodeURIComponent(article.title) + '" target="_blank">' + article.title + '</a>');
+                  markers.addLayer(marker);
+                }
+
+                // Add markers to the map
+                markers.addTo(map);
+
+                // Set map view to the user's location
+                map.setView([lat, lon], 15);
+              },
+              error: function() {
+                $('#spinner').hide();
+                $('#result').html('<p>Error occurred while fetching articles.</p>');
+              }
+            });
+          });
+        } else {
+          $('#result').html('<p>Geolocation is not supported by your browser.</p>');
+        }
+      }
+
+      // Update radius value and fetch articles on slider change
+      $('#radius-slider').on('input', function() {
+        radius = $(this).val();
+        $('#radius-value').text(radius + ' meters');
+        fetchArticles();
+      });
+
+      // Initialize the map
+      map = L.map('map').setView([0, 0], 15);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+         maxZoom: 18,
+      }).addTo(map);
+
+      // Fetch articles on initial page load
+      fetchArticles();
+    });
+  </script>
+  
+  <style>
+    .spinner {
+      display: none;
+      width: 40px;
+      height: 40px;
+      background-color: #333;
+
+      margin: 100px auto;
+      -webkit-animation: sk-rotateplane 1.2s infinite ease-in-out;
+      animation: sk-rotateplane 1.2s infinite ease-in-out;
+    }
+
+    @-webkit-keyframes sk-rotateplane {
+      0% { -webkit-transform: perspective(120px) }
+      50% { -webkit-transform: perspective(120px) rotateY(180deg) }
+      100% { -webkit-transform: perspective(120px) rotateY(180deg)  rotateX(180deg) }
+    }
+
+    @keyframes sk-rotateplane {
+      0% {
+        transform: perspective(120px) rotateX(0deg) rotateY(0deg);
+        -webkit-transform: perspective(120px) rotateX(0deg) rotateY(0deg)
+      } 50% {
+        transform: perspective(120px) rotateX(-180.1deg) rotateY(0deg);
+        -webkit-transform: perspective(120px) rotateX(-180.1deg) rotateY(0deg)
+      } 100% {
+        transform: perspective(120px) rotateX(-180deg) rotateY(-179.9deg);
+        -webkit-transform: perspective(120px) rotateX(-180deg) rotateY(-179.9deg);
+      }
+    }
+
+    #map {
+      height: 400px;
+    }
+  </style>
+</head>
+<body>
+  <h1>How think is the Wikipedia Data Layer here?</h1>
+  <p>A reimagining of <a href="https://github.com/edsu/ici">Ed Summer's <i>ici</i></a></p>
+  <div>
+    <label for="radius-slider">Search Radius: </label>
+    <input type="range" id="radius-slider" min="100" max="10000" step="100" value="5000">
+    <span id="radius-value">metres</span>
+  </div>
+  <div id="spinner" class="spinner"></div>
+  <div id="result"></div>
+  <div id="map"></div>
+  <h3>Colophon</h3>
+  <p>The javascript for this site was generated through prompting the Hermes3-405b model via Lambdalabs. These were the prompts:</p>
+  <li>!llm -m lambdalabs/hermes3-405b 'Generate a single-page HTML that queries the Wikipedia API for articles geotagged within 500 metres of the users position'</li>
+<li>!llm -m lambdalabs/hermes3-405b -c 'Add a spinner while the data is loaded'</li>
+<li>!llm -m lambdalabs/hermes3-405b -c 'Now add a map to display these points of interest'</li>
+<li>!llm -m lambdalabs/hermes3-405b -c 'Add a slider so that the user can set the radius'</li>
+<li>!llm -m lambdalabs/hermes3-405b -c 'When the user changes the slider, the page should requery wikipedia and refresh results.'</li>
+<li>!llm -m lambdalabs/hermes3-405b -c 'Ok, but the map does not refresh the points'</li>
+</body>
+</html>
