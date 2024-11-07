@@ -3,7 +3,8 @@ Just a spot to park or link to experiments in ['homecooked history'](https://ele
 
 ## Experiments
 
-+ A one-page search using the Chronicling America API; download then open in your browser from [here](https://github.com/shawngraham/homecooked-history/tree/main/ca_search)
++ A one-page search using the Chronicling America API; download then open in your browser from [here](https://github.com/shawngraham/homecooked-history/tree/main/ca_search) ([try it live](https://shawngraham.github.io/homecooked-history/ca_search/))
++ A one-page search of Wikipedia for articles geotagged within x metres of the user's location [here](https://github.com/shawngraham/homecooked-history/tree/main/wp-nearby) ([try it live](https://shawngraham.github.io/homecooked-history/wp-nearby/))
 + OCR your pdf and extract a network of key entities [here](https://github.com/shawngraham/text-to-kg)
 + Transcribe handwriting [here](https://github.com/shawngraham/handwriter)
 + Build a personal search engine for local images [here](https://github.com/shawngraham/personal-image-search-engine)
