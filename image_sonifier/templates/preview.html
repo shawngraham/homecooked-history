@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIDI Preview</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
-    <!-- Load Tonejs-Midi from npm cdn -->
     <script src="https://unpkg.com/@tonejs/midi"></script>
     <style>
         .container {
@@ -62,7 +61,7 @@
         
         <div class="preview-container">
             <h3>Your sonified image</h3>
-            <p>Nov 11 - the play button doesn't work yet, still trying to figure that out. But you can download the resulting .mid file and work with that.</p>
+            <p>Press 'play' to get a sense of the result, but for best effect download and then open in GarageBand or similar and assign instrumentation.</p>
             <div class="controls">
                 <button id="playBtn">Play</button>
                 <button id="stopBtn" disabled>Stop</button>
@@ -80,19 +79,12 @@
     </div>
 
     <script>
-        // Ensure the MIDI parser is available
-        if (typeof mm !== 'undefined') {
-            console.log('MIDI parser loaded successfully');
-        } else {
-            console.error('MIDI parser not loaded');
-        }
+        const { Midi } = window; // Access the Midi class directly from the global window object
 
-        // Store the base64 MIDI data
         const midiData = "{{ midi_data }}";
         let synth = null;
         let part = null;
 
-        // Convert base64 to array buffer
         function base64ToArrayBuffer(base64) {
             const binaryString = window.atob(base64);
             const bytes = new Uint8Array(binaryString.length);
@@ -111,13 +103,10 @@
                 await Tone.start();
                 const arrayBuffer = base64ToArrayBuffer(midiData);
                 
-                // Use the MIDI parser from the loaded library
-                const midi = new mm.Midi(arrayBuffer);
+                const midi = new Midi(arrayBuffer);
                 
-                // Create a polyphonic synth
                 synth = new Tone.PolySynth(Tone.Synth).toDestination();
                 
-                // Convert MIDI data to Tone.js events
                 const notes = [];
                 midi.tracks.forEach(track => {
                     track.notes.forEach(note => {
@@ -130,7 +119,6 @@
                     });
                 });
 
-                // Create a new part
                 part = new Tone.Part((time, note) => {
                     synth.triggerAttackRelease(
                         note.note,
@@ -140,7 +128,6 @@
                     );
                 }, notes).start(0);
 
-                // Set the loop points
                 Tone.Transport.setLoopPoints(0, `${midi.duration}`);
                 Tone.Transport.loop = false;
 
@@ -180,12 +167,10 @@
             }
         });
 
-        // Initialize when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             status.textContent = 'Click Play to start';
         });
 
-        // Clean up when navigating away
         window.addEventListener('beforeunload', () => {
             if (synth) {
                 synth.dispose();
