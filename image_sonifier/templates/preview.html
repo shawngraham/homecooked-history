@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDI Preview</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <!-- Load Tonejs-Midi from npm cdn -->
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .preview-container {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 10px;
+            font-style: italic;
+            color: #666;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MIDI Preview</h1>
+        
+        <div class="preview-container">
+            <h3>Your sonified image</h3>
+            <p>Nov 11 - the play button doesn't work yet, still trying to figure that out. But you can download the resulting .mid file and work with that.</p>
+            <div class="controls">
+                <button id="playBtn">Play</button>
+                <button id="stopBtn" disabled>Stop</button>
+                <a href="{{ url_for('download_file', filename=midi_filename) }}" 
+                   download="{{ midi_filename }}"
+                   class="download-btn">
+                    <button type="button">Download MIDI</button>
+                </a>
+            </div>
+            
+            <div id="playback-status" class="status"></div>
+        </div>
+
+        <a href="{{ url_for('upload_file') }}" class="back-link">← Back to upload</a>
+    </div>
+
+    <script>
+        // Ensure the MIDI parser is available
+        if (typeof mm !== 'undefined') {
+            console.log('MIDI parser loaded successfully');
+        } else {
+            console.error('MIDI parser not loaded');
+        }
+
+        // Store the base64 MIDI data
+        const midiData = "{{ midi_data }}";
+        let synth = null;
+        let part = null;
+
+        // Convert base64 to array buffer
+        function base64ToArrayBuffer(base64) {
+            const binaryString = window.atob(base64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        const playBtn = document.getElementById('playBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const status = document.getElementById('playback-status');
+
+        async function initPlayer() {
+            try {
+                await Tone.start();
+                const arrayBuffer = base64ToArrayBuffer(midiData);
+                
+                // Use the MIDI parser from the loaded library
+                const midi = new mm.Midi(arrayBuffer);
+                
+                // Create a polyphonic synth
+                synth = new Tone.PolySynth(Tone.Synth).toDestination();
+                
+                // Convert MIDI data to Tone.js events
+                const notes = [];
+                midi.tracks.forEach(track => {
+                    track.notes.forEach(note => {
+                        notes.push({
+                            time: note.time,
+                            note: Tone.Frequency(note.midi, "midi").toNote(),
+                            duration: note.duration,
+                            velocity: note.velocity
+                        });
+                    });
+                });
+
+                // Create a new part
+                part = new Tone.Part((time, note) => {
+                    synth.triggerAttackRelease(
+                        note.note,
+                        note.duration,
+                        time,
+                        note.velocity
+                    );
+                }, notes).start(0);
+
+                // Set the loop points
+                Tone.Transport.setLoopPoints(0, `${midi.duration}`);
+                Tone.Transport.loop = false;
+
+                status.textContent = 'Ready to play';
+            } catch (error) {
+                console.error('Error in initPlayer:', error);
+                status.textContent = 'Error initializing player: ' + error.message;
+                throw error;
+            }
+        }
+
+        playBtn.addEventListener('click', async () => {
+            if (!synth) {
+                status.textContent = 'Initializing...';
+                try {
+                    await initPlayer();
+                } catch (error) {
+                    console.error('Error initializing player:', error);
+                    status.textContent = 'Error initializing player';
+                    return;
+                }
+            }
+            
+            Tone.Transport.start();
+            playBtn.disabled = true;
+            stopBtn.disabled = false;
+            status.textContent = 'Playing...';
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (synth) {
+                Tone.Transport.stop();
+                synth.releaseAll();
+                playBtn.disabled = false;
+                stopBtn.disabled = true;
+                status.textContent = 'Stopped';
+            }
+        });
+
+        // Initialize when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            status.textContent = 'Click Play to start';
+        });
+
+        // Clean up when navigating away
+        window.addEventListener('beforeunload', () => {
+            if (synth) {
+                synth.dispose();
+            }
+            if (part) {
+                part.dispose();
+            }
+        });
+    </script>
+</body>
+</html>
