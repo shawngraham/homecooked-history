@@ -11,5 +11,6 @@ Just a spot to park or link to experiments in ['homecooked history'](https://ele
 + Build static site or exhibition with Pelican via a colab notebook [here](https://github.com/shawngraham/pelican-via-google-colab)
 + Extract audio from a youtube video, talk with an LLM about its contents [here](https://colab.research.google.com/drive/1pjAFwFT4ay1aPuZQjWn70drs4BsEOlMb?usp=sharing)
 + Play solo journaling RPG with [this game pad](https://shawngraham.github.io/solo-rpg) or reuse its code / directly grab my games [here](https://github.com/shawngraham/solo-rpg)
++ Sonify images to listen to visual data [here](/image_sonifier)
 
 ...I think that's everything, for now.
