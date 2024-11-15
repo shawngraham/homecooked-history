@@ -1,0 +1,115 @@
+[
+    {
+        "images": [
+            8,
+            10,
+            16,
+            23,
+            29,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38
+        ],
+        "img": "subimage_2_1_29.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 1"
+    },
+    {
+        "images": [
+            0,
+            1,
+            2,
+            5,
+            14,
+            30,
+            42
+        ],
+        "img": "subimage_2_2_3.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 2"
+    },
+    {
+        "images": [
+            3,
+            13,
+            20,
+            28,
+            41,
+            43,
+            44
+        ],
+        "img": "subimage_2_2_39.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 3"
+    },
+    {
+        "images": [
+            4,
+            15,
+            21,
+            22,
+            24,
+            25
+        ],
+        "img": "subimage_1_2_14.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 4"
+    },
+    {
+        "images": [
+            9,
+            17,
+            18
+        ],
+        "img": "subimage_1_0_28.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 5"
+    },
+    {
+        "images": [
+            6,
+            7
+        ],
+        "img": "subimage_0_1_33.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 6"
+    },
+    {
+        "images": [
+            11,
+            12
+        ],
+        "img": "subimage_0_2_34.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 7"
+    },
+    {
+        "images": [
+            26,
+            27
+        ],
+        "img": "subimage_1_2_32.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 8"
+    },
+    {
+        "images": [
+            31,
+            32
+        ],
+        "img": "subimage_2_0_35.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 9"
+    },
+    {
+        "images": [
+            19
+        ],
+        "img": "subimage_1_0_37.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 10"
+    }
+]

@@ -1,0 +1,145 @@
+[
+    {
+        "images": [
+            0,
+            7,
+            11,
+            18,
+            22,
+            25,
+            26,
+            35,
+            40,
+            41,
+            52,
+            55,
+            56,
+            61,
+            66,
+            72
+        ],
+        "img": "cas8_cropped_4.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 1"
+    },
+    {
+        "images": [
+            1,
+            4,
+            21,
+            24,
+            27,
+            28,
+            31,
+            36,
+            38,
+            42,
+            49,
+            64,
+            74
+        ],
+        "img": "cas8_cropped_6.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 2"
+    },
+    {
+        "images": [
+            5,
+            9,
+            17,
+            19,
+            32,
+            34,
+            62,
+            65,
+            69,
+            71
+        ],
+        "img": "cas8_cropped_3.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 3"
+    },
+    {
+        "images": [
+            2,
+            16,
+            23,
+            48,
+            50,
+            53,
+            58,
+            59,
+            67
+        ],
+        "img": "cas7_cropped_5.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 4"
+    },
+    {
+        "images": [
+            10,
+            20,
+            33,
+            37,
+            39,
+            46,
+            51,
+            70
+        ],
+        "img": "cas8_cropped_2.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 5"
+    },
+    {
+        "images": [
+            3,
+            8,
+            12,
+            29,
+            43,
+            54
+        ],
+        "img": "cas5_cropped_4.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 6"
+    },
+    {
+        "images": [
+            6,
+            14,
+            15,
+            44
+        ],
+        "img": "cas3_cropped_6.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 7"
+    },
+    {
+        "images": [
+            30,
+            47,
+            63,
+            73
+        ],
+        "img": "cas8_cropped_5.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 8"
+    },
+    {
+        "images": [
+            13,
+            45
+        ],
+        "img": "cas4_cropped_1.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 9"
+    },
+    {
+        "images": [
+            57
+        ],
+        "img": "cas6_cropped_1.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 10"
+    }
+]

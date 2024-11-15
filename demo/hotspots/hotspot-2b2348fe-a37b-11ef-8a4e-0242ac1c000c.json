@@ -1,0 +1,106 @@
+[
+    {
+        "images": [
+            4,
+            9,
+            14,
+            16,
+            23,
+            27,
+            29,
+            30,
+            31
+        ],
+        "img": "subimage_2_1_20.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 1"
+    },
+    {
+        "images": [
+            0,
+            3,
+            11,
+            12,
+            15,
+            17,
+            34
+        ],
+        "img": "subimage_2_2_21.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 2"
+    },
+    {
+        "images": [
+            2,
+            5,
+            25,
+            32,
+            35
+        ],
+        "img": "subimage_2_2_3.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 3"
+    },
+    {
+        "images": [
+            18,
+            19,
+            21,
+            24
+        ],
+        "img": "subimage_2_0.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 4"
+    },
+    {
+        "images": [
+            7,
+            8,
+            28
+        ],
+        "img": "subimage_2_1.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 5"
+    },
+    {
+        "images": [
+            13,
+            20
+        ],
+        "img": "subimage_1_2.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 6"
+    },
+    {
+        "images": [
+            1
+        ],
+        "img": "subimage_0_0_13.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 7"
+    },
+    {
+        "images": [
+            6
+        ],
+        "img": "subimage_0_1_24.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 8"
+    },
+    {
+        "images": [
+            10
+        ],
+        "img": "subimage_0_2_25.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 9"
+    },
+    {
+        "images": [
+            22
+        ],
+        "img": "subimage_1_2_23.png",
+        "layout": "inception_vectors",
+        "label": "Cluster 10"
+    }
+]
