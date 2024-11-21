@@ -10,7 +10,7 @@ Get [ollama](ollama.com)
 Install it; at a terminal prompt, get one of the nuextract models with:
 
 + `$ ollama run iodose/nuextract-v1.5`  (takes 2.4 gb memory)
-+ $ ollama run sroecker/nuextract-tiny-v1.5` (takes 994 mb memory)
++ `$ ollama run sroecker/nuextract-tiny-v1.5` (takes 994 mb memory)
 + no doubt there are other versions available, in other sizes.
 
 To check which models you have handy on your machine, `ollama list`.
@@ -114,7 +114,8 @@ Other example templates from nuextract:
       "Date": ""
     }
   ]
-}```
+}
+```
 
 ```template
 {
