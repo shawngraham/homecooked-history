@@ -38,7 +38,7 @@ def main():
     # Use Ollama to process the extraction
     ollama_response = ollama.chat(
         model='sroecker/nuextract-tiny-v1.5',
-        model='sroecker/nuextract-tiny-v1.5', 
+        #model='iodose/nuextract-v1.5', 
 
         messages=[
             {
