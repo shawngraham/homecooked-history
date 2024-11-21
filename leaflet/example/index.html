@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Demo for a Leaflet Powered Historical Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>A Demo Map</h1>
+            <p>An interactive historical map showing how to add points, have them appear according to a timeline, and some other nifty things</p>
+        </header>
+
+        <div id="map"></div>
+        
+        <div class="controls">
+            <div id="timeline-container">
+                <label for="yearSlider">Year: <span id="yearDisplay">1600</span></label>
+                <input type="range" min="1600" max="1800" value="1700" id="yearSlider">
+                <button id="playButton">▶ Play</button>
+            </div>
+        </div>
+    </div>
+
+<div class="container">
+<h3>Things to look at </h3>
+<p> Points have links to further info</p>
+<p> Base layers can easily be added / switched on or off </p>
+<p> The base data is date-of-foundation for various cities in the US and in Canada</p>
+<p> Points are styled according to the type; points that do not have a recognized type do not get plotted</p>
+<p>also georectified historical map base layers (zoom in on Ottawa)</p>
+</div>
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- MarkerCluster JavaScript -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <!-- Omnivore for data loading -->
+    <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.2.0/leaflet-omnivore.min.js'></script>
+    
+    <script src="map.js"></script>
+</body>
+</html>
