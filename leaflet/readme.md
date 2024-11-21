@@ -3,7 +3,15 @@
 
 This tutorial will guide you through creating interactive web maps to visualize historical data using free, open-source tools. By the end, you'll be able to create a web-based map that tells your historical narrative.
 
-Give this a whirl; examine the complete map code at [example](/example) and check out the live version [here](https://shawngraham.github.io/homecooked-history/leaflet/example)
+Give this a whirl; examine the complete map code at [example](https://github.com/shawngraham/homecooked-history/tree/main/leaflet/example) and check out the live version [here](https://shawngraham.github.io/homecooked-history/leaflet/example)
+
+In fact, study this guide, and then go over to the example code and try to adjust it so that:
+1. The map is centred on Ottawa
+2. A georectified historical map is turned on by default
+3. You define a journey between different places in the city (perhaps a historical parade or protest? The movements of a historic individual?)
+4. You create new points of interest with associated further information.
+
+...on with the show!
 
 ### Prerequisites
 - Basic understanding of HTML and JavaScript
