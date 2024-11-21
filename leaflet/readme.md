@@ -209,7 +209,7 @@ git commit -m "Add historical map"
 git push origin main
 ```
 
-...or drag and drop your files into a new repository. Commit your changes. Then go to settings, select pages, select main as the source, and save. You can click on 'actions' to see when your new commit is being served.
+...or drag and drop your files into a new repository. Commit your changes. If you've forgotten to turn on gh-pages, go to settings, select pages, select main as the source, and save. You can click on 'actions' to see when your new commit is being served.
 
 Your map will be available at: `https://[your-username].github.io/historical-map-project`
 
