@@ -82,8 +82,8 @@ L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}.png', {
 
 Here's how to load different types of historical data, first via csv, then via geojson. Note where you see properties.name, properties.description etc; this is parsing your csv looking for the data in a column called `name` or `description` etc. A useful series of column names might be:
 
+|name|latitude|longitude|year|type|description|link|
 |----|----|----|----|----|----|----|
-|name|latitude|longitude|year|type|description|link
 
 ...and use decimal degrees for the coordinates.
 
