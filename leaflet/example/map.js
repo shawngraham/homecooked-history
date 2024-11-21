@@ -83,8 +83,6 @@ legend.onAdd = function(map) {
     return div;
 };
 
-//legend.addTo(map);
-
 // Load and process the historical data
 let historicalSites = [];
 fetch('data/historical-sites.csv')
@@ -117,7 +115,7 @@ fetch('data/historical-sites.csv')
         }).filter(site => !isNaN(site.geometry.coordinates[0]) && !isNaN(site.geometry.coordinates[1]));
         console.log('Sites:', historicalSites);
         // Initial map update
-        updateMapForYear(1700);
+        updateMapForYear(1601);
     })
     .catch(error => {
         console.error('Error loading CSV:', error);
@@ -126,22 +124,30 @@ fetch('data/historical-sites.csv')
 // Define the journey data - add more points as needed
 const journeyData = [
     {
-        startPoint: [43.1595, -79.2473],
-        endPoint: [39.7377, -75.5472],
-        startYear: 1750,  // When the journey begins
-        endYear: 1760,    // When the journey ends
+        points: [
+            [43.1595, -79.2473],  // Starting point
+            [41.4993, -81.6944],  // Cleveland
+            [40.7128, -74.0060], //another point
+            [39.7377, -75.5472]   // Final destination
+        ],
+        startYear: 1750,
+        endYear: 1760,
         color: '#FF4444',
         weight: 3,
-        label: 'Historic Journey 1'
+        label: 'Historic Journey 2'
     },
     {
-        startPoint: [40.7128, -74.0060],
-        endPoint: [42.3601, -71.0589],
+        points: [
+            [40.7128, -74.0060],  // Starting point
+            [41.8240, -71.4128],  // Providence
+            [47.518890, -52.805832], //another point
+            [42.3601, -71.0589]   // Final destination
+        ],
         startYear: 1601,
-        endYear: 1770,
+        endYear: 1770, // you'd make separate arrays for all the points covered in a year maybe. You'd want to think hard about this.
         color: '#4444FF',
         weight: 3,
-        label: 'Historic Journey 2'
+        label: 'Historic Journey 1'
     }
     // Add more journeys as needed
 ];
@@ -238,36 +244,48 @@ function updateMapForYear(year) {
     
     map.addLayer(markers);
 
-    // Update journey lines
+    // Update muppet lines
     journeyData.forEach((journey, index) => {
         const journeyLine = journeyLines.get(index);
         
         // If we're before the journey starts, clear the line
         if (year < journey.startYear) {
             journeyLine.line.setLatLngs([]);
-            journeyLine.currentPoints = [];
             return;
         }
         
         // If we're after the journey ends, show the complete line
         if (year >= journey.endYear) {
-            journeyLine.line.setLatLngs([journey.startPoint, journey.endPoint]);
+            journeyLine.line.setLatLngs(journey.points);
             return;
         }
         
-        // If we're during the journey, interpolate the position
+        // Calculate progress through the entire journey
         const journeyProgress = (year - journey.startYear) / 
                               (journey.endYear - journey.startYear);
         
-        const currentLat = journey.startPoint[0] + 
-            (journey.endPoint[0] - journey.startPoint[0]) * journeyProgress;
-        const currentLng = journey.startPoint[1] + 
-            (journey.endPoint[1] - journey.startPoint[1]) * journeyProgress;
+        // Calculate which segment we're on and the progress within that segment
+        const totalSegments = journey.points.length - 1;
+        const segmentIndex = Math.floor(journeyProgress * totalSegments);
+        const segmentProgress = (journeyProgress * totalSegments) % 1;
         
-        journeyLine.line.setLatLngs([
-            journey.startPoint,
+        // Get current segment's start and end points
+        const segmentStart = journey.points[segmentIndex];
+        const segmentEnd = journey.points[Math.min(segmentIndex + 1, journey.points.length - 1)];
+        
+        // Interpolate current position
+        const currentLat = segmentStart[0] + 
+            (segmentEnd[0] - segmentStart[0]) * segmentProgress;
+        const currentLng = segmentStart[1] + 
+            (segmentEnd[1] - segmentStart[1]) * segmentProgress;
+        
+        // Create array of points up to current position
+        const currentPoints = [
+            ...journey.points.slice(0, segmentIndex + 1),
             [currentLat, currentLng]
-        ]);
+        ];
+        
+        journeyLine.line.setLatLngs(currentPoints);
     });
 }
 
