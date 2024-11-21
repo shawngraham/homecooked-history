@@ -4,6 +4,8 @@ The Nuextract family of models are finetuned smallish models that have been expl
 
 Give it a text, define a template with what you are after, and the larger models perform well (not perfectly, mind you). You can try out the largest model via the [Huggingface Playground](https://huggingface.co/spaces/numind/NuExtract-1.5). It is possible to use the tiniest model within eg google colab [example faffing about](https://colab.research.google.com/drive/15SL9vCumXvAkoqn2va5b5vhmRVYu9arO#scrollTo=e8SU1yEb0yI6).
 
+These scripts are for comparatively short input texts. I haven't figured out how to adapt the example code for the 'sliding window' thing (see [here at bottom](https://huggingface.co/numind/NuExtract-1.5)) to use Ollama rather than Huggingface. I suppose all of this could just've been written to use Huggingface for model retrieval etc from the outset. 
+
 ## How to use
 Get [ollama](ollama.com)
 
