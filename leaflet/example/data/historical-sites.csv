@@ -1,18 +1,18 @@
 name,latitude,longitude,year,type,description,extra
 StCatharines,43.1595,-79.2473,1779,settlement,A town of renown,<a href="../example/infocards/example" target="_blank">More</a>
 Jamestown,37.2082,-76.7734,1607,colony,First permanent English settlement in America,<a href="../example/infocards/example" target="_blank">More</a>
-Plymouth,41.9584,-70.6673,1620,colony,Landing site of the Mayflower Pilgrims,<a href="/infocards/example" target="_blank">
-New Amsterdam,40.7128,-74.0060,1624,colony,Dutch settlement that later became New York City,<a href="/infocards/example" target="_blank">
-Fort Orange,42.6526,-73.7562,1624,trading_post,Dutch trading post that later became Albany,<a href="/infocards/example" target="_blank">
-St. Mary's City,38.1859,-76.4314,1634,colony,First settlement in Maryland,<a href="/infocards/example" target="_blank">
-Providence,41.8240,-71.4128,1636,settlement,Founded by Roger Williams as a religious sanctuary,<a href="../infocards/example" target="_blank">
-New Haven,41.3083,-72.9279,1638,colony,Established as a Puritan settlement,<a href="/infocards/example" target="_blank">
-Fort Christina,39.7377,-75.5472,1638,colony,First Swedish settlement in North America,<a href="/infocards/example" target="_blank">
-Newport,41.4901,-71.3128,1639,settlement,Early colonial port city in Rhode Island,<a href="/infocards/example" target="_blank">
-Charleston,32.7765,-79.9311,1670,colony,Important early Southern colonial city,<a href="/infocards/example" target="_blank">
-Philadelphia,39.9526,-75.1652,1682,colony,Founded by William Penn as capital of Pennsylvania,<a href="/infocards/example" target="_blank">
-Detroit,42.3314,-83.0458,1701,trading_post,French trading post and fort,<a href="/infocards/example" target="_blank">
-New Orleans,29.9511,-90.0715,1718,settlement,French colonial settlement at mouth of Mississippi,<a href="/infocards/example" target="_blank">
-Savannah,32.0809,-81.0912,1733,colony,First city in Georgia colony,<a href="/infocards/example" target="_blank">"
-Pittsburgh,40.4406,-79.9959,1758,trading_post,Strategic point at confluence of three rivers,<a href="/infocards/example" target="_blank">
+Plymouth,41.9584,-70.6673,1620,colony,Landing site of the Mayflower Pilgrims,<a href="../example/infocards/example" target="_blank">More</a>
+New Amsterdam,40.7128,-74.0060,1624,colony,Dutch settlement that later became New York City,<a href="../example/infocards/example" target="_blank">More</a>
+Fort Orange,42.6526,-73.7562,1624,trading_post,Dutch trading post that later became Albany,<a href="../example/infocards/example" target="_blank">More</a>
+St. Mary's City,38.1859,-76.4314,1634,colony,First settlement in Maryland,<a href="../example/infocards/example" target="_blank">More</a>
+Providence,41.8240,-71.4128,1636,settlement,Founded by Roger Williams as a religious sanctuary,<a href="../example/infocards/example" target="_blank">More</a>
+New Haven,41.3083,-72.9279,1638,colony,Established as a Puritan settlement,<a href="../example/infocards/example" target="_blank">More</a>
+Fort Christina,39.7377,-75.5472,1638,colony,First Swedish settlement in North America,<a href="../example/infocards/example" target="_blank">More</a>
+Newport,41.4901,-71.3128,1639,settlement,Early colonial port city in Rhode Island,<a href="../example/infocards/example" target="_blank">More</a>
+Charleston,32.7765,-79.9311,1670,colony,Important early Southern colonial city,<a href="../example/infocards/example" target="_blank">More</a>
+Philadelphia,39.9526,-75.1652,1682,colony,Founded by William Penn as capital of Pennsylvania,<a href="../example/infocards/example" target="_blank">More</a>
+Detroit,42.3314,-83.0458,1701,trading_post,French trading post and fort,<a href="../example/infocards/example" target="_blank">More</a>
+New Orleans,29.9511,-90.0715,1718,settlement,French colonial settlement at mouth of Mississippi,<a href="../example/infocards/example" target="_blank">More</a>
+Savannah,32.0809,-81.0912,1733,colony,First city in Georgia colony,<a href="../example/infocards/example" target="_blank">More</a>
+Pittsburgh,40.4406,-79.9959,1758,trading_post,Strategic point at confluence of three rivers,<a href="../example/infocards/example" target="_blank">More</a>
 
