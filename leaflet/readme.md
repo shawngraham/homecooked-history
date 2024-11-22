@@ -3,7 +3,7 @@
 
 This tutorial will guide you through creating interactive web maps to visualize historical data using free, open-source tools. By the end, you'll be able to create a web-based map that tells your historical narrative.
 
-Give this a whirl; examine the complete map code at [example](https://github.com/shawngraham/homecooked-history/tree/main/leaflet/example) and check out the live version [here](https://shawngraham.github.io/homecooked-history/leaflet/example)
+Give this a whirl; examine the complete map code at [example](https://github.com/shawngraham/homecooked-history/tree/main/leaflet/example) and check out the live version [here](https://shawngraham.github.io/homecooked-history/leaflet/example). (I have a slightly expanded example [here](https://shawngraham.github.io/homecooked-history/leaflet/example/index2.html) where another column in the source data - story - has a narrative that accompanies the map. As the points update, the text in 'story' for that year appears in the sidebar. It's clumsy, but gives you a sense of further elaborations you could try.)
 
 In fact, study this guide, and then go over to the example code and try to adjust it so that:
 1. The map is centred on Ottawa
