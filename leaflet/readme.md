@@ -79,32 +79,25 @@ const map = L.map('map').setView([40.7128, -74.0060], 4);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
 }).addTo(map);
-
-// OR 
-// Add a Stamen Toner layer for historical feel (optional)
-L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}.png', {
-    attribution: 'Map tiles by Stamen Design, CC BY 3.0'
-}).addTo(map);
 ```
 
-Slight modification:
+But what if you want a general map for orientation, with a specific, georectified historical map on top?
 
 ```javascript
-//if you try both, the first one will get overwritten by the second. If you want BOTH maps to show at the same time
-// eg you have a regular map for context, and then a smaller georectified map of interest, you would do this:
+//define layers
 
 // First layer from MapWarper (historical/custom map)
 var mapWarperLayer = L.tileLayer('https://mapwarper.net/maps/tile/61034/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">MapWarper</a>',
-    opacity: 0.5 // Adjust opacity to make both layers visible
+    opacity: 0.25 // Adjust opacity to make both layers visible
 });
 
 // Second layer from OpenStreetMap
 var openStreetMapLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    opacity: 0.5 // Adjust opacity to make both layers visible
+    opacity: 1 // Adjust opacity to make both layers visible
 });
 
 // Add both layers to the map
