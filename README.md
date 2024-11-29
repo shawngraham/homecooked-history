@@ -13,6 +13,7 @@ Just a spot to park or link to experiments in ['homecooked history'](https://ele
 + Play solo journaling RPG with [this game pad](https://shawngraham.github.io/solo-rpg) or reuse its code / directly grab my games [here](https://github.com/shawngraham/solo-rpg)
 + Sonify images to listen to visual data [here](/image_sonifier)
 + Extract structured information from texts with [nuextract llm](dataextract).
++ Extract structured information from texts with a workflow involving coreference resolution and llama3 via groq [here](https://github.com/shawngraham/homecooked-history/blob/main/structured_data_extractor_using_groq_and_llm_and_coreferee.ipynb)
 + Build a map with [leaflet](https://github.com/shawngraham/homecooked-history/tree/main/leaflet)
 
 ...I think that's everything, for now.
