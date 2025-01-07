@@ -15,5 +15,6 @@ Just a spot to park or link to experiments in ['homecooked history'](https://ele
 + Extract structured information from texts with [nuextract llm](dataextract).
 + Extract structured information from texts with a workflow involving coreference resolution and llama3 via groq [here](https://github.com/shawngraham/homecooked-history/blob/main/structured_data_extractor_using_groq_and_llm_and_coreferee.ipynb)
 + Build a map with [leaflet](https://github.com/shawngraham/homecooked-history/tree/main/leaflet)
++ A browser for exploring the latent spaces between images [here](https://github.com/shawngraham/GAN-latent-space-explorer)
 
 ...I think that's everything, for now.
