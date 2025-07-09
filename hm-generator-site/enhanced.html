@@ -369,6 +369,9 @@
         const svg = d3.select("#matrixSvg");
         const g = svg.append("g").attr("class", "main-group");
         
+        const GRID_CELL_SIZE = 60;
+        const GRID_COLOR = "#e9ecef";
+        
         const zoom = d3.zoom()
             .scaleExtent([0.1, 5])
             .on("zoom", (event) => {
@@ -383,6 +386,7 @@
                 this.id = id;
                 this.x = x;
                 this.y = y;
+                this.fixed = false; // Flag for user-defined position
                 this.type = 'layer';
                 this.description = '';
                 this.earliestDate = null;
@@ -418,6 +422,7 @@
         // Initialize
         window.onload = () => {
             loadFromStorage();
+            drawGrid();
             updateUI();
             svg.on('click', handleCanvasClick);
         };
@@ -685,7 +690,7 @@
         // --- Sugiyama Layout Implementation ---
         function applySugiyamaLayout() {
             if (contexts.size === 0) {
-                g.selectAll("*").remove();
+                g.selectAll(".context-node-group, .relationship-path, .group-boundary, .subgroup-boundary, .phase-boundary").remove();
                 return;
             }
 
@@ -794,20 +799,67 @@
             const positions = {};
             const ySpacing = 120, xSpacing = 150;
             const width = svg.node().getBoundingClientRect().width;
-            const maxLevel = d3.max(orderedLevels.keys()) || 0;
             
+            const fixedNodeIds = new Set();
+            
+            // 1. Place all fixed nodes first based on their stored x, y
+            contexts.forEach(context => {
+                if (context.fixed) {
+                    positions[context.id] = { x: context.x, y: context.y };
+                    fixedNodeIds.add(context.id);
+                }
+            });
+
+            // 2. Filter orderedLevels to only include non-fixed, non-dummy nodes
+            const floatingLevels = new Map();
+            let maxFloatingLevel = 0;
             orderedLevels.forEach((nodes, level) => {
+                const floatingNodes = nodes.filter(id => !fixedNodeIds.has(id));
+                if (floatingNodes.length > 0) {
+                    floatingLevels.set(level, floatingNodes);
+                    if (level > maxFloatingLevel) maxFloatingLevel = level;
+                }
+            });
+
+            // 3. Run the automatic layout algorithm on the remaining "floating" nodes
+            floatingLevels.forEach((nodes, level) => {
                 const levelWidth = (nodes.length - 1) * xSpacing;
                 const startX = (width - levelWidth) / 2;
                 nodes.forEach((id, i) => {
-                    positions[id] = { x: startX + i * xSpacing, y: 50 + (maxLevel - level) * ySpacing };
+                    // This check prevents overwriting dummy nodes that might share a level
+                    if (!positions[id]) {
+                        positions[id] = { x: startX + i * xSpacing, y: 50 + (maxFloatingLevel - level) * ySpacing };
+                    }
                 });
             });
             return positions;
         }
         
+        function drawGrid() {
+            g.select(".grid-group").remove(); // Clear old grid
+            const gridSize = 4000;
+            const gridGroup = g.insert("g", ":first-child").attr("class", "grid-group");
+
+            gridGroup.selectAll("line.vertical")
+                .data(d3.range(-gridSize, gridSize, GRID_CELL_SIZE))
+                .enter().append("line")
+                .attr("class", "vertical")
+                .attr("x1", d => d).attr("y1", -gridSize)
+                .attr("x2", d => d).attr("y2", gridSize)
+                .style("stroke", GRID_COLOR).style("stroke-width", 1);
+
+            gridGroup.selectAll("line.horizontal")
+                .data(d3.range(-gridSize, gridSize, GRID_CELL_SIZE))
+                .enter().append("line")
+                .attr("class", "horizontal")
+                .attr("x1", -gridSize).attr("y1", d => d)
+                .attr("x2", gridSize).attr("y2", d => d)
+                .style("stroke", GRID_COLOR).style("stroke-width", 1);
+        }
+
         function drawMatrix(positions, allEdges, contemporaryLinks) {
-            g.selectAll("*").remove();
+            // Clear only dynamic elements, keep the grid
+            g.selectAll(".context-node-group, .relationship-path, .group-boundary, .subgroup-boundary, .phase-boundary, defs").remove();
             
             const defs = g.append("defs");
             defs.append("marker").attr("id", "arrowhead").attr("viewBox", "0 -5 10 10").attr("refX", 8).attr("refY", 0).attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5").style("fill", "#495057");
@@ -833,7 +885,7 @@
             });
 
             const nodeData = Array.from(contexts.keys()).filter(id => positions[id]);
-            const nodeGroups = g.selectAll(".context-node-group").data(nodeData, d => d).enter().append("g")
+            const nodeGroups = g.selectAll(".context-node-group").data(nodeData, d => d).join("g")
                 .attr("class", "context-node-group")
                 .attr("transform", d => `translate(${positions[d].x}, ${positions[d].y})`)
                 .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
@@ -869,7 +921,9 @@
         function handleCanvasClick(event) {
             if (event.defaultPrevented) return;
             const [x, y] = d3.pointer(event, g.node());
-            showContextModal(x, y);
+            const snappedX = Math.round(x / GRID_CELL_SIZE) * GRID_CELL_SIZE;
+            const snappedY = Math.round(y / GRID_CELL_SIZE) * GRID_CELL_SIZE;
+            showContextModal(snappedX, snappedY);
         }
         
         function showContextModal(x, y) {
@@ -883,6 +937,7 @@
                 const id = document.getElementById("newContextId").value.trim().toUpperCase();
                 if (!id || contexts.has(id)) { alert(`Context "${id}" is invalid or already exists.`); return; }
                 const context = new ArchaeologicalContext(id, x, y);
+                context.fixed = true; // New contexts are fixed by default
                 context.type = document.getElementById("contextType").value;
                 context.description = document.getElementById("contextDescription").value.trim();
                 const earliest = document.getElementById("earliestDate").value, latest = document.getElementById("latestDate").value;
@@ -993,6 +1048,7 @@
             if (wasDragged) {
                 const sourceId = d;
                 let targetId = null;
+                // Check if dropped on another node
                 for (const [id] of contexts.entries()) {
                     if (sourceId === id) continue;
                     const pos = nodePositions[id];
@@ -1000,12 +1056,22 @@
                         targetId = id; break;
                     }
                 }
+                
                 if (targetId) {
                     showRelationshipModal(sourceId, targetId);
+                } else {
+                    // This is a manual move, not a relationship creation
+                    const context = contexts.get(sourceId);
+                    if (context) {
+                        context.x = Math.round(event.x / GRID_CELL_SIZE) * GRID_CELL_SIZE;
+                        context.y = Math.round(event.y / GRID_CELL_SIZE) * GRID_CELL_SIZE;
+                        context.fixed = true;
+                    }
                 }
-                applySugiyamaLayout();
+                // Always update the UI to reflect changes (new position or new relationship)
+                updateUI();
             } else {
-                // This is the click event
+                // This is a click event, not a drag
                 showEditNodeModal(d);
             }
         }
