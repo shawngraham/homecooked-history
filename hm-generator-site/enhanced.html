@@ -827,7 +827,6 @@
                         if (targetLevel > sourceLevel) {
                             const progress = (level - sourceLevel) / (targetLevel - sourceLevel);
                             const interpolatedX = sourcePos.x + (targetPos.x - sourcePos.x) * progress;
-                            // Interpolate Y as well to align perfectly with grid-snapped nodes
                             const interpolatedY = sourcePos.y + (targetPos.y - sourcePos.y) * progress;
                             positions[id] = { x: interpolatedX, y: interpolatedY };
                         }
@@ -881,8 +880,8 @@
             g.selectAll(".context-node-group, .relationship-path, .group-boundary, .subgroup-boundary, .phase-boundary, defs").remove();
             
             const defs = g.append("defs");
-            defs.append("marker").attr("id", "arrowhead").attr("viewBox", "0 -5 10 10").attr("refX", 8).attr("refY", 0).attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5").style("fill", "#495057");
-            defs.append("marker").attr("id", "arrowhead-cuts").attr("viewBox", "0 -5 10 10").attr("refX", 8).attr("refY", 0).attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5").style("fill", "var(--danger-accent)");
+            defs.append("marker").attr("id", "arrowhead").attr("viewBox", "-2 -5 10 10").attr("refX", 5).attr("refY", 0).attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5").style("fill", "#495057");
+            defs.append("marker").attr("id", "arrowhead-cuts").attr("viewBox", "-2 -5 10 10").attr("refX", 5).attr("refY", 0).attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5").style("fill", "var(--danger-accent)");
             
             drawGroupBoundaries(positions);
             
@@ -890,7 +889,10 @@
                 const p1 = positions[edge.from];
                 const p2 = positions[edge.to];
                 if (!p1 || !p2) return;
-                const pathData = `M ${p1.x},${p1.y} L ${p2.x},${p2.y}`;
+                
+                // *** CHANGE: Use V-H elbow path for stratigraphic lines ***
+                const pathData = `M ${p1.x},${p1.y} V ${p2.y} H ${p2.x}`;
+                
                 const hasConflict = temporalConflicts.some(c => (c.context1 === edge.from && c.context2 === edge.to) || (c.context1 === edge.to && c.context2 === edge.from));
                 g.append("path").attr("class", `relationship-path ${hasConflict ? 'temporal-conflict' : (edge.isCut ? 'cuts' : 'stratigraphic')}`).attr("d", pathData);
             });
