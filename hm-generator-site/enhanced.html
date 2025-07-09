@@ -105,7 +105,7 @@
         .form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
         .form-row { display: flex; gap: 10px; }
         .form-row input { flex: 1; }
-        .date-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .date-inputs { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
         
         /* Data Display Styles */
         .hierarchy-list { margin-bottom: 20px; }
@@ -231,10 +231,25 @@
             </div>
             <div class="form-group">
                 <label>Dating Evidence (optional)</label>
+                
+                <label style="font-size:0.9em; font-weight:normal; margin-top: 5px;">Earliest Date</label>
                 <div class="date-inputs">
-                    <input type="number" id="earliestDate" placeholder="Earliest (CE)">
-                    <input type="number" id="latestDate" placeholder="Latest (CE)">
+                    <input type="number" id="earliestDateYear" placeholder="Year" min="1">
+                    <select id="earliestDateEra">
+                        <option value="CE">CE</option>
+                        <option value="BCE">BCE</option>
+                    </select>
                 </div>
+
+                <label style="font-size:0.9em; font-weight:normal; margin-top: 5px;">Latest Date</label>
+                <div class="date-inputs">
+                    <input type="number" id="latestDateYear" placeholder="Year" min="1">
+                    <select id="latestDateEra">
+                        <option value="CE">CE</option>
+                        <option value="BCE">BCE</option>
+                    </select>
+                </div>
+
                 <select id="dateType" style="margin-top: 10px;">
                     <option value="">No dating evidence</option>
                     <option value="pottery">Pottery</option>
@@ -288,10 +303,25 @@
             </div>
             <div class="form-group">
                 <label>Dating Evidence</label>
+                
+                <label style="font-size:0.9em; font-weight:normal; margin-top: 5px;">Earliest Date</label>
                 <div class="date-inputs">
-                    <input type="number" id="editEarliestDate" placeholder="Earliest (CE)">
-                    <input type="number" id="editLatestDate" placeholder="Latest (CE)">
+                    <input type="number" id="editEarliestDateYear" placeholder="Year" min="1">
+                    <select id="editEarliestDateEra">
+                        <option value="CE">CE</option>
+                        <option value="BCE">BCE</option>
+                    </select>
                 </div>
+
+                <label style="font-size:0.9em; font-weight:normal; margin-top: 5px;">Latest Date</label>
+                <div class="date-inputs">
+                    <input type="number" id="editLatestDateYear" placeholder="Year" min="1">
+                    <select id="editLatestDateEra">
+                        <option value="CE">CE</option>
+                        <option value="BCE">BCE</option>
+                    </select>
+                </div>
+
                 <select id="editDateType" style="margin-top: 10px;">
                     <option value="">No dating evidence</option>
                     <option value="pottery">Pottery</option>
@@ -510,7 +540,7 @@
                                 ${hasConflicts ? '<span class="conflict-indicator"></span>' : '<span class="valid-indicator"></span>'}
                             </div>
                             <div class="item-details">${context.description}</div>
-                            ${context.hasDateRange() ? `<div class="item-contexts">${context.earliestDate} - ${context.latestDate} CE (${context.dateType})</div>` : ''}
+                            ${context.hasDateRange() ? `<div class="item-contexts">${dateToString(context.earliestDate)} - ${dateToString(context.latestDate)} (${context.dateType})</div>` : ''}
                         </div>
                     `;
                 });
@@ -535,8 +565,8 @@
                         <div class="item-header">Conflict ${index + 1}</div>
                         <div class="item-details" style="font-weight: 500;">${conflict.description}</div>
                         <div class="item-contexts">
-                            ${ctx1?.id} (${ctx1?.earliestDate}-${ctx1?.latestDate}) vs 
-                            ${ctx2?.id} (${ctx2?.earliestDate}-${ctx2?.latestDate})
+                            ${ctx1?.id} (${dateToString(ctx1?.earliestDate)}-${dateToString(ctx1?.latestDate)}) vs 
+                            ${ctx2?.id} (${dateToString(ctx2?.earliestDate)}-${dateToString(ctx2?.latestDate)})
                         </div>
                     </div>
                 `;
@@ -590,7 +620,6 @@
             });
         }
 
-        // --- FIX: Corrected Conflict Logic ---
         function analyzeTemporalConflicts() {
             temporalConflicts = [];
             relationships.forEach(rel => {
@@ -600,20 +629,17 @@
 
                 let earlierCtx, laterCtx, earlierDate, laterDate;
 
-                // Determine which context is stratigraphically earlier
                 if (['above', 'seals', 'cuts', 'filled_by'].includes(rel.type)) { 
                     earlierCtx = ctx2; laterCtx = ctx1;
                 } else if (['below', 'sealed_by', 'cut_by', 'fill_of'].includes(rel.type)) { 
                     earlierCtx = ctx1; laterCtx = ctx2;
                 } else {
-                    return; // Not a time-ordered relationship
+                    return;
                 }
 
                 earlierDate = earlierCtx.getDateRange();
                 laterDate = laterCtx.getDateRange();
-
-                // A true conflict exists ONLY if the earliest possible date of the stratigraphically EARLIER
-                // context is AFTER the latest possible date of the stratigraphically LATER context.
+                
                 if (earlierDate.earliest > laterDate.latest) {
                     temporalConflicts.push({
                         context1: earlierCtx.id,
@@ -805,7 +831,6 @@
             const width = svg.node().getBoundingClientRect().width;
             const maxLevel = d3.max(orderedLevels.keys()) || 0;
 
-            // 1. Place all fixed nodes from their stored properties
             const fixedNodeIds = new Set();
             contexts.forEach(context => {
                 if (context.fixed) {
@@ -814,7 +839,6 @@
                 }
             });
 
-            // 2. Position "anchored" dummy nodes whose start and end real nodes are fixed
             orderedLevels.forEach((nodes, level) => {
                 nodes.forEach(id => {
                     const dummyInfo = dummyNodes.get(id);
@@ -834,7 +858,6 @@
                 });
             });
             
-            // 3. Position all remaining "floating" nodes using the automatic layout
             const floatingLevels = new Map();
             orderedLevels.forEach((nodes, level) => {
                 const floatingNodes = nodes.filter(id => !positions[id]);
@@ -854,7 +877,7 @@
         }
         
         function drawGrid() {
-            g.select(".grid-group").remove(); // Clear old grid
+            g.select(".grid-group").remove();
             const gridSize = 4000;
             const gridGroup = g.insert("g", ":first-child").attr("class", "grid-group");
 
@@ -876,7 +899,6 @@
         }
 
         function drawMatrix(positions, allEdges, contemporaryLinks) {
-            // Clear only dynamic elements, keep the grid
             g.selectAll(".context-node-group, .relationship-path, .group-boundary, .subgroup-boundary, .phase-boundary, defs").remove();
             
             const defs = g.append("defs");
@@ -890,7 +912,6 @@
                 const p2 = positions[edge.to];
                 if (!p1 || !p2) return;
                 
-                // *** CHANGE: Use V-H elbow path for stratigraphic lines ***
                 const pathData = `M ${p1.x},${p1.y} V ${p2.y} H ${p2.x}`;
                 
                 const hasConflict = temporalConflicts.some(c => (c.context1 === edge.from && c.context2 === edge.to) || (c.context1 === edge.to && c.context2 === edge.from));
@@ -951,21 +972,27 @@
             modal.style.display = "flex";
             const input = document.getElementById("newContextId");
             input.value = suggestNextContextId();
+            document.getElementById("earliestDateYear").value = '';
+            document.getElementById("latestDateYear").value = '';
             input.focus();
             
             document.getElementById("confirmContextBtn").onclick = () => {
                 const id = document.getElementById("newContextId").value.trim().toUpperCase();
                 if (!id || contexts.has(id)) { alert(`Context "${id}" is invalid or already exists.`); return; }
                 const context = new ArchaeologicalContext(id, x, y);
-                context.fixed = true; // New contexts are fixed by default
+                context.fixed = true;
                 context.type = document.getElementById("contextType").value;
                 context.description = document.getElementById("contextDescription").value.trim();
-                const earliest = document.getElementById("earliestDate").value, latest = document.getElementById("latestDate").value;
-                if(earliest && latest) {
-                    context.earliestDate = parseInt(earliest);
-                    context.latestDate = parseInt(latest);
-                    context.dateType = document.getElementById("dateType").value;
-                }
+                
+                const earliestYear = parseInt(document.getElementById("earliestDateYear").value);
+                const earliestEra = document.getElementById("earliestDateEra").value;
+                const latestYear = parseInt(document.getElementById("latestDateYear").value);
+                const latestEra = document.getElementById("latestDateEra").value;
+
+                context.earliestDate = parseDateFromInputs(earliestYear, earliestEra);
+                context.latestDate = parseDateFromInputs(latestYear, latestEra);
+                context.dateType = document.getElementById("dateType").value;
+
                 contexts.set(id, context);
                 hideModals(); updateUI();
             };
@@ -980,8 +1007,15 @@
             document.getElementById("editNodeIdInput").value = contextId;
             document.getElementById("editContextType").value = context.type;
             document.getElementById("editContextDescription").value = context.description;
-            document.getElementById("editEarliestDate").value = context.earliestDate || '';
-            document.getElementById("editLatestDate").value = context.latestDate || '';
+
+            const earliestDisplay = formatDateForDisplay(context.earliestDate);
+            document.getElementById("editEarliestDateYear").value = earliestDisplay.year;
+            document.getElementById("editEarliestDateEra").value = earliestDisplay.era;
+
+            const latestDisplay = formatDateForDisplay(context.latestDate);
+            document.getElementById("editLatestDateYear").value = latestDisplay.year;
+            document.getElementById("editLatestDateEra").value = latestDisplay.era;
+            
             document.getElementById("editDateType").value = context.dateType || '';
             document.getElementById("editGroupAssignment").value = context.groupId || '';
             document.getElementById("editSubGroupAssignment").value = context.subGroupId || '';
@@ -1001,10 +1035,14 @@
             
             context.type = document.getElementById('editContextType').value;
             context.description = document.getElementById('editContextDescription').value.trim();
-            const earliest = document.getElementById('editEarliestDate').value;
-            const latest = document.getElementById('editLatestDate').value;
-            context.earliestDate = earliest ? parseInt(earliest) : null;
-            context.latestDate = latest ? parseInt(latest) : null;
+            
+            const editEarliestYear = parseInt(document.getElementById('editEarliestDateYear').value);
+            const editEarliestEra = document.getElementById('editEarliestDateEra').value;
+            const editLatestYear = parseInt(document.getElementById('editLatestDateYear').value);
+            const editLatestEra = document.getElementById('editLatestDateEra').value;
+
+            context.earliestDate = parseDateFromInputs(editEarliestYear, editEarliestEra);
+            context.latestDate = parseDateFromInputs(editLatestYear, editLatestEra);
             context.dateType = document.getElementById('editDateType').value;
             
             const newGroupId = document.getElementById('editGroupAssignment').value || null;
@@ -1068,7 +1106,6 @@
             if (wasDragged) {
                 const sourceId = d;
                 let targetId = null;
-                // Check if dropped on another node
                 for (const [id] of contexts.entries()) {
                     if (sourceId === id) continue;
                     const pos = nodePositions[id];
@@ -1080,7 +1117,6 @@
                 if (targetId) {
                     showRelationshipModal(sourceId, targetId);
                 } else {
-                    // This is a manual move, not a relationship creation
                     const context = contexts.get(sourceId);
                     if (context) {
                         context.x = Math.round(event.x / GRID_CELL_SIZE) * GRID_CELL_SIZE;
@@ -1088,15 +1124,32 @@
                         context.fixed = true;
                     }
                 }
-                // Always update the UI to reflect changes (new position or new relationship)
                 updateUI();
             } else {
-                // This is a click event, not a drag
                 showEditNodeModal(d);
             }
         }
 
-        // Utility functions
+        // Utility and Date Formatting functions
+        function parseDateFromInputs(year, era) {
+            if (isNaN(year) || year <= 0) return null;
+            return era === 'BCE' ? -year : year;
+        }
+
+        function formatDateForDisplay(internalYear) {
+            if (internalYear === null || internalYear === 0) return { year: '', era: 'CE' };
+            if (internalYear < 0) {
+                return { year: Math.abs(internalYear), era: 'BCE' };
+            }
+            return { year: internalYear, era: 'CE' };
+        }
+        
+        function dateToString(internalYear) {
+            if (internalYear === null || internalYear === 0) return '';
+            const { year, era } = formatDateForDisplay(internalYear);
+            return `${year} ${era}`;
+        }
+
         function suggestNextContextId() {
             if (contexts.size === 0) return "1001";
             const numbers = Array.from(contexts.keys()).map(id => parseInt(id.match(/\d+$/)?.[0])).filter(n => !isNaN(n));
@@ -1165,7 +1218,7 @@
         function exportEnhancedData() {
             if (contexts.size === 0) { alert("No data to export."); return; }
             let csvContent = "data:text/csv;charset=utf-8,";
-            const headers = ["Context_ID", "Context_Type", "Description", "Earliest_Date_CE", "Latest_Date_CE", "Date_Type", "Phase_ID", "Phase_Name", "Group_ID", "Group_Name", "Sub-Group_ID", "Sub-Group_Name", "Relationship_Type", "Related_Context_ID", "Temporal_Conflict"];
+            const headers = ["Context_ID", "Context_Type", "Description", "Earliest_Date_Year", "Earliest_Date_Era", "Latest_Date_Year", "Latest_Date_Era", "Date_Type", "Phase_ID", "Phase_Name", "Group_ID", "Group_Name", "Sub-Group_ID", "Sub-Group_Name", "Relationship_Type", "Related_Context_ID", "Temporal_Conflict"];
             csvContent += headers.join(",") + "\r\n";
 
             contexts.forEach(context => {
@@ -1173,10 +1226,19 @@
                 const subGroup = context.subGroupId ? subGroups.get(context.subGroupId) : null;
                 const phase = context.phaseId ? phases.get(context.phaseId) : null;
                 const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
+                
+                const earliestDate = formatDateForDisplay(context.earliestDate);
+                const latestDate = formatDateForDisplay(context.latestDate);
 
                 const relsForContext = relationships.filter(r => r.from === context.id);
                 const hasConflict = temporalConflicts.some(c => c.context1 === context.id || c.context2 === context.id);
-                const baseRow = [escapeCSV(context.id), escapeCSV(context.type), escapeCSV(context.description), context.earliestDate ?? '', context.latestDate ?? '', escapeCSV(context.dateType), escapeCSV(context.phaseId), escapeCSV(phase?.name), escapeCSV(context.groupId), escapeCSV(group?.name), escapeCSV(context.subGroupId), escapeCSV(subGroup?.name)];
+                const baseRow = [
+                    escapeCSV(context.id), escapeCSV(context.type), escapeCSV(context.description), 
+                    earliestDate.year, escapeCSV(earliestDate.era),
+                    latestDate.year, escapeCSV(latestDate.era),
+                    escapeCSV(context.dateType), escapeCSV(context.phaseId), escapeCSV(phase?.name), 
+                    escapeCSV(context.groupId), escapeCSV(group?.name), escapeCSV(context.subGroupId), escapeCSV(subGroup?.name)
+                ];
 
                 if (relsForContext.length > 0) {
                     relsForContext.forEach(rel => {
