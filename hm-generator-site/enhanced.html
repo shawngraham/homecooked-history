@@ -698,7 +698,7 @@
             const { dummyNodes, allEdges } = createDummyNodesAndEdges(stratigraphicEdges, levels);
             const allNodes = new Map([...contexts, ...dummyNodes]);
             const orderedLevels = reduceCrossings(levels, allNodes, allEdges);
-            nodePositions = assignCoordinates(orderedLevels);
+            nodePositions = assignCoordinates(orderedLevels, levels, dummyNodes);
             
             drawMatrix(nodePositions, allEdges, contemporaryLinks);
         }
@@ -752,7 +752,11 @@
                     let lastNodeId = edge.from;
                     for (let i = fromLevel + 1; i < toLevel; i++) {
                         const dummyId = `dummy_${edge.from}_${edge.to}_${i}`;
-                        dummyNodes.set(dummyId, { id: dummyId });
+                        dummyNodes.set(dummyId, {
+                            id: dummyId,
+                            originalSource: edge.from,
+                            originalTarget: edge.to
+                        });
                         levels.set(dummyId, i);
                         allEdges.push({ from: lastNodeId, to: dummyId, isCut: edge.isCut });
                         lastNodeId = dummyId;
@@ -795,14 +799,14 @@
             return orderedLevels;
         }
 
-        function assignCoordinates(orderedLevels) {
+        function assignCoordinates(orderedLevels, levels, dummyNodes) {
             const positions = {};
             const ySpacing = 120, xSpacing = 150;
             const width = svg.node().getBoundingClientRect().width;
-            
+            const maxLevel = d3.max(orderedLevels.keys()) || 0;
+
+            // 1. Place all fixed nodes from their stored properties
             const fixedNodeIds = new Set();
-            
-            // 1. Place all fixed nodes first based on their stored x, y
             contexts.forEach(context => {
                 if (context.fixed) {
                     positions[context.id] = { x: context.x, y: context.y };
@@ -810,28 +814,43 @@
                 }
             });
 
-            // 2. Filter orderedLevels to only include non-fixed, non-dummy nodes
-            const floatingLevels = new Map();
-            let maxFloatingLevel = 0;
+            // 2. Position "anchored" dummy nodes whose start and end real nodes are fixed
             orderedLevels.forEach((nodes, level) => {
-                const floatingNodes = nodes.filter(id => !fixedNodeIds.has(id));
-                if (floatingNodes.length > 0) {
-                    floatingLevels.set(level, floatingNodes);
-                    if (level > maxFloatingLevel) maxFloatingLevel = level;
-                }
-            });
+                nodes.forEach(id => {
+                    const dummyInfo = dummyNodes.get(id);
+                    if (dummyInfo && fixedNodeIds.has(dummyInfo.originalSource) && fixedNodeIds.has(dummyInfo.originalTarget)) {
+                        const sourcePos = positions[dummyInfo.originalSource];
+                        const targetPos = positions[dummyInfo.originalTarget];
+                        const sourceLevel = levels.get(dummyInfo.originalSource);
+                        const targetLevel = levels.get(dummyInfo.originalTarget);
 
-            // 3. Run the automatic layout algorithm on the remaining "floating" nodes
-            floatingLevels.forEach((nodes, level) => {
-                const levelWidth = (nodes.length - 1) * xSpacing;
-                const startX = (width - levelWidth) / 2;
-                nodes.forEach((id, i) => {
-                    // This check prevents overwriting dummy nodes that might share a level
-                    if (!positions[id]) {
-                        positions[id] = { x: startX + i * xSpacing, y: 50 + (maxFloatingLevel - level) * ySpacing };
+                        if (targetLevel > sourceLevel) {
+                            const progress = (level - sourceLevel) / (targetLevel - sourceLevel);
+                            const interpolatedX = sourcePos.x + (targetPos.x - sourcePos.x) * progress;
+                            // Interpolate Y as well to align perfectly with grid-snapped nodes
+                            const interpolatedY = sourcePos.y + (targetPos.y - sourcePos.y) * progress;
+                            positions[id] = { x: interpolatedX, y: interpolatedY };
+                        }
                     }
                 });
             });
+            
+            // 3. Position all remaining "floating" nodes using the automatic layout
+            const floatingLevels = new Map();
+            orderedLevels.forEach((nodes, level) => {
+                const floatingNodes = nodes.filter(id => !positions[id]);
+                if(floatingNodes.length > 0) floatingLevels.set(level, floatingNodes);
+            });
+
+            floatingLevels.forEach((nodes, level) => {
+                const levelWidth = (nodes.length - 1) * xSpacing;
+                const startX = (width - levelWidth) / 2;
+                const yPos = 50 + (maxLevel - level) * ySpacing;
+                nodes.forEach((id, i) => {
+                    positions[id] = { x: startX + i * xSpacing, y: yPos };
+                });
+            });
+            
             return positions;
         }
         
@@ -871,8 +890,7 @@
                 const p1 = positions[edge.from];
                 const p2 = positions[edge.to];
                 if (!p1 || !p2) return;
-                const midY = (p1.y + p2.y) / 2;
-                const pathData = `M ${p1.x},${p1.y} V ${midY} H ${p2.x} V ${p2.y}`;
+                const pathData = `M ${p1.x},${p1.y} L ${p2.x},${p2.y}`;
                 const hasConflict = temporalConflicts.some(c => (c.context1 === edge.from && c.context2 === edge.to) || (c.context1 === edge.to && c.context2 === edge.from));
                 g.append("path").attr("class", `relationship-path ${hasConflict ? 'temporal-conflict' : (edge.isCut ? 'cuts' : 'stratigraphic')}`).attr("d", pathData);
             });
