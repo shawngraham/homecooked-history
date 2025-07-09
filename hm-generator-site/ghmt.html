@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Harris Matrix Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        :root {
+            --primary-bg: #f0f2f5; --container-bg: #ffffff; --panel-bg: #f8f9fa;
+            --header-color: #2c3e50; --text-color: #34495e; --border-color: #dee2e6;
+            --primary-accent: #007bff; --primary-accent-hover: #0056b3;
+            --danger-accent: #dc3545; --success-accent: #28a745; --warning-accent: #ffc107;
+            --cancel-accent: #6c757d; --phase-1: #e3f2fd; --phase-2: #f3e5f5; --phase-3: #e8f5e8;
+            --group-bg: #fff3e0; --subgroup-bg: #fafafa;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0; padding: 20px; background-color: var(--primary-bg); color: var(--text-color);
+        }
+        .container {
+            max-width: 1800px; margin: 0 auto; background: var(--container-bg);
+            border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 25px;
+        }
+        .header { text-align: center; margin-bottom: 25px; }
+        h1 { color: var(--header-color); margin: 0 0 5px 0; font-size: 2em; }
+        .header p { color: #6c757d; margin: 0; }
+        .workspace { display: flex; gap: 20px; flex-wrap: wrap; }
+        .data-panel {
+            width: 400px; background: var(--panel-bg); padding: 20px;
+            border-radius: 8px; border: 1px solid var(--border-color);
+            height: fit-content; flex-shrink: 0; max-height: 80vh; overflow-y: auto;
+        }
+        .data-panel h3 { 
+            margin: 0 0 15px 0; color: var(--header-color); 
+            border-bottom: 1px solid var(--border-color); padding-bottom: 10px; 
+        }
+        .visualization-panel {
+            flex: 1; border: 1px solid var(--border-color); border-radius: 8px;
+            min-height: 70vh; position: relative; cursor: grab; overflow: hidden;
+        }
+        #matrixSvg { display: block; width: 100%; height: 100%; }
+        
+        /* Context Styles */
+        .context-node-group { cursor: move; }
+        .context-node-group.dragging { opacity: 0.7; cursor: grabbing; }
+        .context-node {
+            fill: var(--primary-accent); stroke: var(--primary-accent-hover); stroke-width: 2px;
+            cursor: pointer; transition: fill 0.2s, transform 0.2s ease-out;
+        }
+        .context-node:hover { fill: var(--primary-accent-hover); transform: scale(1.05); }
+        .context-node.grouped { fill: var(--warning-accent); stroke: #e0a800; }
+        .context-node.phased { fill: var(--success-accent); stroke: #1e7e34; }
+        .context-node.temporal-conflict { fill: var(--danger-accent); stroke: #c82333; animation: pulse 2s infinite; }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        /* Group and Phase Visualization */
+        .group-boundary {
+            fill: var(--group-bg); stroke: #ff9800; stroke-width: 2px; 
+            stroke-dasharray: 5,5; opacity: 0.3; pointer-events: none;
+        }
+        .subgroup-boundary {
+            fill: var(--subgroup-bg); stroke: #9c27b0; stroke-width: 1px;
+            stroke-dasharray: 3,3; opacity: 0.2; pointer-events: none;
+        }
+        .phase-boundary {
+            fill: var(--phase-1); stroke: #4caf50; stroke-width: 3px;
+            stroke-dasharray: 10,5; opacity: 0.4; pointer-events: none;
+        }
+        
+        .context-label { font-size: 14px; font-weight: 600; text-anchor: middle; pointer-events: none; fill: white; }
+        .relationship-path { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+        .relationship-path.stratigraphic { stroke: #495057; stroke-width: 2px; marker-end: url(#arrowhead); }
+        .relationship-path.cuts { stroke: var(--danger-accent); stroke-width: 2.5px; stroke-dasharray: 6,4; marker-end: url(#arrowhead-cuts); }
+        .relationship-path.contemporary { stroke: var(--success-accent); stroke-width: 2px; stroke-dasharray: 2,4; }
+        .relationship-path.temporal-conflict { stroke: var(--danger-accent); stroke-width: 3px; animation: pulse 2s infinite; marker-end: url(#arrowhead-cuts); }
+        
+        /* Modal Styles */
+        .modal-backdrop {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .modal-content {
+            background: white; padding: 25px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            width: 400px; max-height: 80vh; overflow-y: auto;
+        }
+        .modal-content h4 { margin: 0 0 20px 0; }
+        .modal-content input, .modal-content select, .modal-content textarea { 
+            width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid var(--border-color); 
+            border-radius: 4px; box-sizing: border-box; 
+        }
+        .modal-buttons { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; }
+        .modal-buttons button { flex: 1; padding: 10px; border: none; border-radius: 4px; cursor: pointer; color: white; }
+        .modal-buttons button.confirm { background: var(--primary-accent); }
+        .modal-buttons button.danger { background: var(--danger-accent); }
+        .modal-buttons button.cancel { background: var(--cancel-accent); }
+        
+        /* Form Styles */
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+        .form-row { display: flex; gap: 10px; }
+        .form-row input { flex: 1; }
+        .date-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        
+        /* Data Display Styles */
+        .hierarchy-list { margin-bottom: 20px; }
+        .hierarchy-item {
+            padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 4px solid var(--primary-accent);
+            background: #f8f9fa; cursor: pointer; transition: background 0.2s;
+        }
+        .hierarchy-item:hover { background: #e9ecef; }
+        .hierarchy-item.group { border-left-color: #ff9800; background: var(--group-bg); }
+        .hierarchy-item.subgroup { border-left-color: #9c27b0; background: var(--subgroup-bg); margin-left: 20px; }
+        .hierarchy-item.phase { border-left-color: #4caf50; background: var(--phase-1); }
+        .hierarchy-item.temporal-conflict { border-left-color: var(--danger-accent); background: #ffebee; }
+        
+        .item-header { font-weight: bold; margin-bottom: 5px; }
+        .item-details { font-size: 0.9em; color: #666; }
+        .item-contexts { font-size: 0.8em; color: #888; margin-top: 5px; }
+        
+        /* Actions Panel */
+        .actions-panel { margin-top: 20px; }
+        .actions-panel button { 
+            width: 100%; margin-bottom: 10px; padding: 10px; border: none; 
+            color: white; border-radius: 5px; cursor: pointer; 
+        }
+        .btn-primary { background: var(--primary-accent); }
+        .btn-success { background: var(--success-accent); }
+        .btn-danger { background: var(--danger-accent); }
+        .btn-warning { background: var(--warning-accent); color: #333; }
+        
+        /* Conflict Indicators */
+        .conflict-indicator {
+            display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+            background: var(--danger-accent); margin-left: 5px; animation: pulse 2s infinite;
+        }
+        .valid-indicator {
+            display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+            background: var(--success-accent); margin-left: 5px;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 15px;
+        }
+        .tab {
+            padding: 10px 15px; cursor: pointer; border-bottom: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+        .tab.active { border-bottom-color: var(--primary-accent); background: #f8f9fa; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Graham's Harris Matrix Tool</h1>
+            <p>Archaeological stratigraphy data entry tool and visualizer with hierarchical grouping and temporal validation</p>
+            <p style="font-size: 12px; font-style: italic;">Click background to create contexts • Drag contexts to create relationships • Click on contexts to edit • Scroll to zoom, drag background to pan</p>
+        </div>
+        
+        <div class="workspace">
+            <div class="data-panel">
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('hierarchy')">Hierarchy</div>
+                    <div class="tab" onclick="switchTab('conflicts')">Conflicts</div>
+                    <div class="tab" onclick="switchTab('relationships')">Relations</div>
+                </div>
+                
+                <div id="hierarchy-tab" class="tab-content active">
+                    <h3>Stratigraphic Hierarchy</h3>
+                    <div id="hierarchyList"><em>No data yet. Start by clicking on the canvas.</em></div>
+                </div>
+                
+                <div id="conflicts-tab" class="tab-content">
+                    <h3>Temporal Conflicts</h3>
+                    <div id="conflictsList"><em>No conflicts detected.</em></div>
+                </div>
+                
+                <div id="relationships-tab" class="tab-content">
+                    <h3>Relationships</h3>
+                    <div id="relationshipsList"><em>No relationships defined.</em></div>
+                </div>
+                
+                <div class="actions-panel">
+                    <h3>Management Tools</h3>
+                    <button onclick="createGroup()" class="btn-warning">Create Group</button>
+                    <button onclick="createSubGroup()" class="btn-warning">Create Sub-Group</button>
+                    <button onclick="createPhase()" class="btn-success">Create Phase</button>
+                    <button onclick="analyzeTemporalConflicts()" class="btn-primary">Analyze Conflicts</button>
+                    <button onclick="resetZoom()" class="btn-primary">Reset View</button>
+                    <button onclick="exportEnhancedData()" class="btn-success">Export Enhanced CSV</button>
+                    <button onclick="confirmClear()" class="btn-danger">Clear All</button>
+                </div>
+            </div>
+            
+            <div class="visualization-panel">
+                <svg id="matrixSvg"></svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enhanced Context Modal -->
+    <div id="contextModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h4>Create New Context</h4>
+            <div class="form-group">
+                <label>Context Identifier</label>
+                <input type="text" id="newContextId" placeholder="e.g., 1001">
+            </div>
+            <div class="form-group">
+                <label>Context Type</label>
+                <select id="contextType">
+                    <option value="layer">Layer</option>
+                    <option value="deposit">Deposit</option>
+                    <option value="cut">Cut</option>
+                    <option value="fill">Fill</option>
+                    <option value="structure">Structure</option>
+                    <option value="interface">Interface</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="contextDescription" placeholder="Brief description of the context" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Dating Evidence (optional)</label>
+                <div class="date-inputs">
+                    <input type="number" id="earliestDate" placeholder="Earliest (CE)">
+                    <input type="number" id="latestDate" placeholder="Latest (CE)">
+                </div>
+                <select id="dateType" style="margin-top: 10px;">
+                    <option value="">No dating evidence</option>
+                    <option value="pottery">Pottery</option>
+                    <option value="coin">Coin</option>
+                    <option value="radiocarbon">Radiocarbon</option>
+                    <option value="stratigraphic">Stratigraphic</option>
+                    <option value="architectural">Architectural</option>
+                </select>
+            </div>
+            <div class="modal-buttons">
+                <button id="confirmContextBtn" class="confirm">Create</button>
+                <button onclick="hideModals()" class="cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Relationship Modal -->
+    <div id="relationshipModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h4 id="relationshipModalTitle">Define Relationship</h4>
+            <select id="relationshipType"></select>
+            <div class="modal-buttons">
+                <button id="confirmRelationshipBtn" class="confirm">Add</button>
+                <button onclick="hideModals()" class="cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Node Modal -->
+    <div id="editNodeModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h4 id="editNodeModalTitle">Edit Context</h4>
+            <div class="form-group">
+                <label>Context Identifier</label>
+                <input type="text" id="editNodeIdInput">
+            </div>
+            <div class="form-group">
+                <label>Context Type</label>
+                <select id="editContextType">
+                    <option value="layer">Layer</option>
+                    <option value="deposit">Deposit</option>
+                    <option value="cut">Cut</option>
+                    <option value="fill">Fill</option>
+                    <option value="structure">Structure</option>
+                    <option value="interface">Interface</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="editContextDescription" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Dating Evidence</label>
+                <div class="date-inputs">
+                    <input type="number" id="editEarliestDate" placeholder="Earliest (CE)">
+                    <input type="number" id="editLatestDate" placeholder="Latest (CE)">
+                </div>
+                <select id="editDateType" style="margin-top: 10px;">
+                    <option value="">No dating evidence</option>
+                    <option value="pottery">Pottery</option>
+                    <option value="coin">Coin</option>
+                    <option value="radiocarbon">Radiocarbon</option>
+                    <option value="stratigraphic">Stratigraphic</option>
+                    <option value="architectural">Architectural</option>
+                </select>
+            </div>
+             <div class="form-group">
+                <label>Phase Assignment</label>
+                <select id="editPhaseAssignment">
+                    <option value="">No phase</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Group Assignment</label>
+                <select id="editGroupAssignment">
+                    <option value="">No group</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Sub-Group Assignment</label>
+                <select id="editSubGroupAssignment">
+                    <option value="">No sub-group</option>
+                </select>
+            </div>
+            <div class="modal-buttons">
+                <button id="saveNodeBtn" class="confirm">Save Changes</button>
+                <button onclick="hideModals()" class="cancel">Cancel</button>
+            </div>
+            <button id="deleteNodeBtn" class="danger" style="width: 100%; margin-top: 10px;">Delete Context</button>
+        </div>
+    </div>
+
+    <!-- Group Creation Modal -->
+    <div id="groupModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h4 id="groupModalTitle">Create Group</h4>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="groupName" placeholder="e.g., Building A">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="groupDescription" placeholder="Description of the item" rows="2"></textarea>
+            </div>
+            <div class="form-group" id="groupTypeWrapper">
+                <label>Group Type</label>
+                <select id="groupType">
+                    <option value="functional">Functional Group</option>
+                    <option value="structural">Structural Group</option>
+                    <option value="chronological">Chronological Group</option>
+                    <option value="spatial">Spatial Group</option>
+                </select>
+            </div>
+            <div class="modal-buttons">
+                <button id="confirmGroupBtn" class="confirm">Create</button>
+                <button onclick="hideModals()" class="cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced Data Model
+        let contexts = new Map();
+        let relationships = [];
+        let groups = new Map();
+        let subGroups = new Map();
+        let phases = new Map();
+        let nodePositions = {};
+        let temporalConflicts = [];
+
+        // D3 Setup
+        const svg = d3.select("#matrixSvg");
+        const g = svg.append("g").attr("class", "main-group");
+        
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 5])
+            .on("zoom", (event) => {
+                g.attr("transform", event.transform);
+            });
+        
+        svg.call(zoom);
+
+        // Enhanced Context Data Structure
+        class ArchaeologicalContext {
+            constructor(id, x = 0, y = 0) {
+                this.id = id;
+                this.x = x;
+                this.y = y;
+                this.type = 'layer';
+                this.description = '';
+                this.earliestDate = null;
+                this.latestDate = null;
+                this.dateType = '';
+                this.groupId = null;
+                this.subGroupId = null;
+                this.phaseId = null;
+            }
+            
+            hasDateRange() {
+                return this.earliestDate !== null && this.latestDate !== null;
+            }
+            
+            getDateRange() {
+                if (!this.hasDateRange()) return null;
+                return { earliest: this.earliestDate, latest: this.latestDate, type: this.dateType };
+            }
+        }
+
+        class HierarchicalGroup {
+            constructor(id, name, type = 'functional') {
+                this.id = id;
+                this.name = name;
+                this.type = type;
+                this.description = '';
+                this.contexts = new Set();
+                this.subGroups = new Set();
+                this.phaseId = null;
+            }
+        }
+
+        // Initialize
+        window.onload = () => {
+            loadFromStorage();
+            updateUI();
+            svg.on('click', handleCanvasClick);
+        };
+
+        // Tab Management
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+        }
+
+        // Enhanced UI Update
+        function updateUI() {
+            updateHierarchyDisplay();
+            updateConflictsDisplay();
+            updateRelationshipsDisplay();
+            updateDropdownOptions();
+            applySugiyamaLayout();
+            saveToStorage();
+        }
+
+        function updateHierarchyDisplay() {
+            const listDiv = document.getElementById("hierarchyList");
+            let html = '';
+            
+            if (phases.size > 0) {
+                html += '<div style="font-weight: bold; margin: 10px 0;">Phases</div>';
+                phases.forEach(phase => {
+                    const phaseContextIds = Array.from(contexts.values()).filter(c => c.phaseId === phase.id).map(c => c.id);
+                    const hasConflicts = temporalConflicts.some(c => phaseContextIds.includes(c.context1) || phaseContextIds.includes(c.context2));
+                    html += `
+                        <div class="hierarchy-item phase ${hasConflicts ? 'temporal-conflict' : ''}" onclick="highlightPhase('${phase.id}')">
+                            <div class="item-header">
+                                Phase: ${phase.name}
+                                ${hasConflicts ? '<span class="conflict-indicator"></span>' : '<span class="valid-indicator"></span>'}
+                            </div>
+                            <div class="item-details">${phase.description}</div>
+                            <div class="item-contexts">${phaseContextIds.length} contexts</div>
+                        </div>
+                    `;
+                });
+            }
+            
+            if (groups.size > 0) {
+                html += '<div style="font-weight: bold; margin: 10px 0;">Groups</div>';
+                groups.forEach(group => {
+                    const groupContextIds = Array.from(group.contexts);
+                    const hasConflicts = temporalConflicts.some(c => groupContextIds.includes(c.context1) || groupContextIds.includes(c.context2));
+                    html += `
+                        <div class="hierarchy-item group ${hasConflicts ? 'temporal-conflict' : ''}" onclick="highlightGroup('${group.id}')">
+                            <div class="item-header">
+                                Group: ${group.name} (${group.type})
+                                ${hasConflicts ? '<span class="conflict-indicator"></span>' : '<span class="valid-indicator"></span>'}
+                            </div>
+                            <div class="item-details">${group.description}</div>
+                            <div class="item-contexts">${group.contexts.size} contexts</div>
+                        </div>
+                    `;
+                    group.subGroups.forEach(subGroupId => {
+                        const subGroup = subGroups.get(subGroupId);
+                        if (subGroup) {
+                             html += `
+                                <div class="hierarchy-item subgroup" onclick="highlightSubGroup('${subGroup.id}')">
+                                    <div class="item-header">Sub-group: ${subGroup.name}</div>
+                                    <div class="item-details">${subGroup.description}</div>
+                                    <div class="item-contexts">${subGroup.contexts.size} contexts</div>
+                                </div>
+                            `;
+                        }
+                    });
+                });
+            }
+            
+            const unassigned = Array.from(contexts.values()).filter(c => !c.groupId && !c.phaseId);
+            if (unassigned.length > 0) {
+                html += '<div style="font-weight: bold; margin: 10px 0;">Unassigned Contexts</div>';
+                unassigned.forEach(context => {
+                    const hasConflicts = temporalConflicts.some(c => c.context1 === context.id || c.context2 === context.id);
+                    html += `
+                        <div class="hierarchy-item ${hasConflicts ? 'temporal-conflict' : ''}" onclick="highlightContext('${context.id}')">
+                            <div class="item-header">
+                                ${context.id} (${context.type})
+                                ${hasConflicts ? '<span class="conflict-indicator"></span>' : '<span class="valid-indicator"></span>'}
+                            </div>
+                            <div class="item-details">${context.description}</div>
+                            ${context.hasDateRange() ? `<div class="item-contexts">${context.earliestDate} - ${context.latestDate} CE (${context.dateType})</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+            
+            listDiv.innerHTML = html || '<em>No data available.</em>';
+        }
+
+        function updateConflictsDisplay() {
+            const listDiv = document.getElementById("conflictsList");
+            if (temporalConflicts.length === 0) {
+                listDiv.innerHTML = '<em>No conflicts detected.</em>';
+                return;
+            }
+            
+            let html = '';
+            temporalConflicts.forEach((conflict, index) => {
+                const ctx1 = contexts.get(conflict.context1);
+                const ctx2 = contexts.get(conflict.context2);
+                html += `
+                    <div class="hierarchy-item temporal-conflict">
+                        <div class="item-header">Conflict ${index + 1}</div>
+                        <div class="item-details" style="font-weight: 500;">${conflict.description}</div>
+                        <div class="item-contexts">
+                            ${ctx1?.id} (${ctx1?.earliestDate}-${ctx1?.latestDate}) vs 
+                            ${ctx2?.id} (${ctx2?.earliestDate}-${ctx2?.latestDate})
+                        </div>
+                    </div>
+                `;
+            });
+            listDiv.innerHTML = html;
+        }
+
+        function updateRelationshipsDisplay() {
+            const listDiv = document.getElementById("relationshipsList");
+            if (relationships.length === 0) {
+                listDiv.innerHTML = '<em>No relationships defined.</em>';
+                return;
+            }
+            
+            let tableHTML = `<table style="width:100%; border-collapse: collapse; font-size: 12px;">
+                <thead><tr><th>From</th><th>Relationship</th><th>To</th><th>Status</th><th></th></tr></thead><tbody>`;
+            
+            relationships.forEach((rel, index) => {
+                const conflict = temporalConflicts.find(c => (c.context1 === rel.from && c.context2 === rel.to) || (c.context1 === rel.to && c.context2 === rel.from));
+                const status = conflict ? '⚠️ Conflict' : '✅ Valid';
+                
+                tableHTML += `<tr style="${conflict ? 'background: #ffebee;' : ''}">
+                    <td style="border: 1px solid #ddd; padding: 4px;">${rel.from}</td>
+                    <td style="border: 1px solid #ddd; padding: 4px;">${rel.type.replace(/_/g, " ")}</td>
+                    <td style="border: 1px solid #ddd; padding: 4px;">${rel.to}</td>
+                    <td style="border: 1px solid #ddd; padding: 4px; text-align: center;">${status}</td>
+                    <td style="border: 1px solid #ddd; padding: 4px; text-align: center;">
+                        <button onclick="removeRelationship(${index})" style="background: var(--danger-accent); color: white; border: none; border-radius: 3px; cursor: pointer; padding: 2px 5px; font-size: 10px;">X</button>
+                    </td>
+                </tr>`;
+            });
+            tableHTML += `</tbody></table>`;
+            listDiv.innerHTML = tableHTML;
+        }
+
+        function updateDropdownOptions() {
+            ['editGroupAssignment', 'editSubGroupAssignment', 'editPhaseAssignment'].forEach(id => {
+                const select = document.getElementById(id);
+                const currentVal = select.value;
+                if (id === 'editGroupAssignment') {
+                    select.innerHTML = '<option value="">No group</option>';
+                    groups.forEach(group => { select.innerHTML += `<option value="${group.id}">${group.name}</option>`; });
+                } else if (id === 'editSubGroupAssignment') {
+                    select.innerHTML = '<option value="">No sub-group</option>';
+                    subGroups.forEach(subGroup => { select.innerHTML += `<option value="${subGroup.id}">${subGroup.name}</option>`; });
+                } else {
+                    select.innerHTML = '<option value="">No phase</option>';
+                    phases.forEach(phase => { select.innerHTML += `<option value="${phase.id}">${phase.name}</option>`; });
+                }
+                select.value = currentVal;
+            });
+        }
+
+        // --- FIX: Corrected Conflict Logic ---
+        function analyzeTemporalConflicts() {
+            temporalConflicts = [];
+            relationships.forEach(rel => {
+                const ctx1 = contexts.get(rel.from);
+                const ctx2 = contexts.get(rel.to);
+                if (!ctx1?.hasDateRange() || !ctx2?.hasDateRange()) return;
+
+                let earlierCtx, laterCtx, earlierDate, laterDate;
+
+                // Determine which context is stratigraphically earlier
+                if (['above', 'seals', 'cuts', 'filled_by'].includes(rel.type)) { 
+                    earlierCtx = ctx2; laterCtx = ctx1;
+                } else if (['below', 'sealed_by', 'cut_by', 'fill_of'].includes(rel.type)) { 
+                    earlierCtx = ctx1; laterCtx = ctx2;
+                } else {
+                    return; // Not a time-ordered relationship
+                }
+
+                earlierDate = earlierCtx.getDateRange();
+                laterDate = laterCtx.getDateRange();
+
+                // A true conflict exists ONLY if the earliest possible date of the stratigraphically EARLIER
+                // context is AFTER the latest possible date of the stratigraphically LATER context.
+                if (earlierDate.earliest > laterDate.latest) {
+                    temporalConflicts.push({
+                        context1: earlierCtx.id,
+                        context2: laterCtx.id,
+                        description: `IMPOSSIBLE: ${earlierCtx.id} (earlier) is dated entirely after ${laterCtx.id} (later).`
+                    });
+                }
+            });
+            updateUI();
+            alert(`Analysis complete. Found ${temporalConflicts.length} irreconcilable temporal conflicts.`);
+        }
+
+        function createGroup() {
+            currentModalType = 'group';
+            document.getElementById("groupModal").style.display = "flex";
+            document.getElementById("groupModalTitle").innerText = "Create Group";
+            document.getElementById("groupTypeWrapper").style.display = 'block';
+            document.getElementById("groupName").value = '';
+            document.getElementById("groupDescription").value = '';
+            document.getElementById("confirmGroupBtn").onclick = confirmCreateGroup;
+        }
+
+        function createSubGroup() {
+            if (groups.size === 0) { alert("Please create a parent group first."); return; }
+            currentModalType = 'subgroup';
+            document.getElementById("groupModal").style.display = "flex";
+            document.getElementById("groupModalTitle").innerText = "Create Sub-Group";
+            document.getElementById("groupTypeWrapper").style.display = 'none';
+            document.getElementById("groupName").value = '';
+            document.getElementById("groupDescription").value = '';
+            document.getElementById("confirmGroupBtn").onclick = confirmCreateSubGroup;
+        }
+
+        function createPhase() {
+            currentModalType = 'phase';
+            document.getElementById("groupModal").style.display = "flex";
+            document.getElementById("groupModalTitle").innerText = "Create Phase";
+            document.getElementById("groupTypeWrapper").style.display = 'none';
+            document.getElementById("groupName").value = '';
+            document.getElementById("groupDescription").value = '';
+            document.getElementById("confirmGroupBtn").onclick = confirmCreatePhase;
+        }
+
+        function confirmCreateGroup() {
+            const name = document.getElementById("groupName").value.trim();
+            if (!name) { alert("Group name is required."); return; }
+            const id = `group_${Date.now()}`;
+            const group = new HierarchicalGroup(id, name, document.getElementById("groupType").value);
+            group.description = document.getElementById("groupDescription").value.trim();
+            groups.set(id, group);
+            hideModals(); updateUI();
+        }
+
+        function confirmCreateSubGroup() {
+            const name = document.getElementById("groupName").value.trim();
+            if (!name) { alert("Sub-group name is required."); return; }
+            const id = `subgroup_${Date.now()}`;
+            const subGroup = new HierarchicalGroup(id, name, 'subgroup');
+            subGroup.description = document.getElementById("groupDescription").value.trim();
+            subGroups.set(id, subGroup);
+            hideModals(); updateUI();
+        }
+
+        function confirmCreatePhase() {
+            const name = document.getElementById("groupName").value.trim();
+            if (!name) { alert("Phase name is required."); return; }
+            const id = `phase_${Date.now()}`;
+            const phase = new HierarchicalGroup(id, name, 'phase');
+            phase.description = document.getElementById("groupDescription").value.trim();
+            phases.set(id, phase);
+            hideModals(); updateUI();
+        }
+
+        // --- Sugiyama Layout Implementation ---
+        function applySugiyamaLayout() {
+            if (contexts.size === 0) {
+                g.selectAll("*").remove();
+                return;
+            }
+
+            const { levels, stratigraphicEdges, contemporaryLinks } = calculateInitialLevels();
+            const { dummyNodes, allEdges } = createDummyNodesAndEdges(stratigraphicEdges, levels);
+            const allNodes = new Map([...contexts, ...dummyNodes]);
+            const orderedLevels = reduceCrossings(levels, allNodes, allEdges);
+            nodePositions = assignCoordinates(orderedLevels);
+            
+            drawMatrix(nodePositions, allEdges, contemporaryLinks);
+        }
+
+        function calculateInitialLevels() {
+            const contextIds = Array.from(contexts.keys());
+            const adj = new Map(contextIds.map(id => [id, []]));
+            const inDegree = new Map(contextIds.map(id => [id, 0]));
+            const stratigraphicEdges = [];
+            const contemporaryLinks = [];
+
+            relationships.forEach(rel => {
+                let from, to; // Graph direction: EARLIER context -> LATER context
+                if (['above', 'seals', 'cuts', 'filled_by'].includes(rel.type)) { 
+                    [from, to] = [rel.to, rel.from]; 
+                } else if (['below', 'sealed_by', 'cut_by', 'fill_of'].includes(rel.type)) { 
+                    [from, to] = [rel.from, rel.to]; 
+                } else if (['contemporary_with', 'equivalent', 'same_as'].includes(rel.type)) { 
+                    contemporaryLinks.push({ from: rel.from, to: rel.to }); 
+                }
+
+                if (from && to && contexts.has(from) && contexts.has(to)) {
+                    adj.get(from)?.push(to);
+                    inDegree.set(to, (inDegree.get(to) || 0) + 1);
+                    stratigraphicEdges.push({ from, to, isCut: ['cuts', 'cut_by'].includes(rel.type) });
+                }
+            });
+
+            const levels = new Map();
+            const queue = contextIds.filter(id => inDegree.get(id) === 0);
+            for (let i = 0; i < queue.length; i++) {
+                const u = queue[i];
+                levels.set(u, levels.get(u) || 0);
+                (adj.get(u) || []).forEach(v => {
+                    levels.set(v, Math.max(levels.get(v) || 0, levels.get(u) + 1));
+                    inDegree.set(v, inDegree.get(v) - 1);
+                    if (inDegree.get(v) === 0) queue.push(v);
+                });
+            }
+            contextIds.forEach(id => { if (!levels.has(id)) levels.set(id, 0); });
+            return { levels, stratigraphicEdges, contemporaryLinks };
+        }
+
+        function createDummyNodesAndEdges(edges, levels) {
+            const dummyNodes = new Map();
+            const allEdges = [];
+            edges.forEach(edge => {
+                const fromLevel = levels.get(edge.from);
+                const toLevel = levels.get(edge.to);
+                if (toLevel - fromLevel > 1) {
+                    let lastNodeId = edge.from;
+                    for (let i = fromLevel + 1; i < toLevel; i++) {
+                        const dummyId = `dummy_${edge.from}_${edge.to}_${i}`;
+                        dummyNodes.set(dummyId, { id: dummyId });
+                        levels.set(dummyId, i);
+                        allEdges.push({ from: lastNodeId, to: dummyId, isCut: edge.isCut });
+                        lastNodeId = dummyId;
+                    }
+                    allEdges.push({ from: lastNodeId, to: edge.to, isCut: edge.isCut });
+                } else {
+                    allEdges.push(edge);
+                }
+            });
+            return { dummyNodes, allEdges };
+        }
+
+        function reduceCrossings(levels, allNodes, allEdges) {
+            const layerMap = d3.group(Array.from(allNodes.keys()), id => levels.get(id));
+            const sortedLayers = Array.from(layerMap.keys()).sort((a, b) => a - b);
+            
+            let orderedLevels = new Map(sortedLayers.map(l => [l, layerMap.get(l)]));
+            
+            const adj = new Map(Array.from(allNodes.keys()).map(id => [id, []]));
+            const revAdj = new Map(Array.from(allNodes.keys()).map(id => [id, []]));
+            allEdges.forEach(e => {
+                adj.get(e.from)?.push(e.to);
+                revAdj.get(e.to)?.push(e.from);
+            });
+            
+            for (let iter = 0; iter < 10; iter++) { 
+                for (let i = 1; i < sortedLayers.length; i++) {
+                    const layer = orderedLevels.get(sortedLayers[i]);
+                    const prevLayer = orderedLevels.get(sortedLayers[i-1]);
+                    const posInPrevLayer = new Map(prevLayer.map((id, idx) => [id, idx]));
+                    layer.sort((a, b) => (d3.mean(revAdj.get(a), n => posInPrevLayer.get(n)) ?? -1) - (d3.mean(revAdj.get(b), n => posInPrevLayer.get(n)) ?? -1));
+                }
+                for (let i = sortedLayers.length - 2; i >= 0; i--) {
+                     const layer = orderedLevels.get(sortedLayers[i]);
+                     const nextLayer = orderedLevels.get(sortedLayers[i+1]);
+                     const posInNextLayer = new Map(nextLayer.map((id, idx) => [id, idx]));
+                     layer.sort((a, b) => (d3.mean(adj.get(a), n => posInNextLayer.get(n)) ?? -1) - (d3.mean(adj.get(b), n => posInNextLayer.get(n)) ?? -1));
+                }
+            }
+            return orderedLevels;
+        }
+
+        function assignCoordinates(orderedLevels) {
+            const positions = {};
+            const ySpacing = 120, xSpacing = 150;
+            const width = svg.node().getBoundingClientRect().width;
+            const maxLevel = d3.max(orderedLevels.keys()) || 0;
+            
+            orderedLevels.forEach((nodes, level) => {
+                const levelWidth = (nodes.length - 1) * xSpacing;
+                const startX = (width - levelWidth) / 2;
+                nodes.forEach((id, i) => {
+                    positions[id] = { x: startX + i * xSpacing, y: 50 + (maxLevel - level) * ySpacing };
+                });
+            });
+            return positions;
+        }
+        
+        function drawMatrix(positions, allEdges, contemporaryLinks) {
+            g.selectAll("*").remove();
+            
+            const defs = g.append("defs");
+            defs.append("marker").attr("id", "arrowhead").attr("viewBox", "0 -5 10 10").attr("refX", 8).attr("refY", 0).attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5").style("fill", "#495057");
+            defs.append("marker").attr("id", "arrowhead-cuts").attr("viewBox", "0 -5 10 10").attr("refX", 8).attr("refY", 0).attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5").style("fill", "var(--danger-accent)");
+            
+            drawGroupBoundaries(positions);
+            
+            allEdges.forEach(edge => {
+                const p1 = positions[edge.from];
+                const p2 = positions[edge.to];
+                if (!p1 || !p2) return;
+                const midY = (p1.y + p2.y) / 2;
+                const pathData = `M ${p1.x},${p1.y} V ${midY} H ${p2.x} V ${p2.y}`;
+                const hasConflict = temporalConflicts.some(c => (c.context1 === edge.from && c.context2 === edge.to) || (c.context1 === edge.to && c.context2 === edge.from));
+                g.append("path").attr("class", `relationship-path ${hasConflict ? 'temporal-conflict' : (edge.isCut ? 'cuts' : 'stratigraphic')}`).attr("d", pathData);
+            });
+            
+            contemporaryLinks.forEach(link => {
+                const p1 = positions[link.from];
+                const p2 = positions[link.to];
+                if (!p1 || !p2) return;
+                g.append("line").attr("class", "relationship-path contemporary").attr("x1", p1.x).attr("y1", p1.y).attr("x2", p2.x).attr("y2", p2.y);
+            });
+
+            const nodeData = Array.from(contexts.keys()).filter(id => positions[id]);
+            const nodeGroups = g.selectAll(".context-node-group").data(nodeData, d => d).enter().append("g")
+                .attr("class", "context-node-group")
+                .attr("transform", d => `translate(${positions[d].x}, ${positions[d].y})`)
+                .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
+
+            nodeGroups.append("rect").attr("class", d => "context-node " + (temporalConflicts.some(c => c.context1 === d || c.context2 === d) ? "temporal-conflict" : (contexts.get(d)?.phaseId ? "phased" : (contexts.get(d)?.groupId ? "grouped" : ""))))
+                .attr("x", -45).attr("y", -22.5).attr("width", 90).attr("height", 45).attr("rx", 8);
+
+            nodeGroups.append("text").attr("class", "context-label").attr("dy", "0.35em").text(d => d);
+        }
+
+        function drawGroupBoundaries(positions) {
+            const drawRectBoundary = (contextIds, className) => {
+                const validPositions = contextIds.map(id => positions[id]).filter(p => p);
+                if (validPositions.length < 1) return;
+                const padX = 60;
+                const padY = 40;
+                const minX = d3.min(validPositions, p => p.x) - padX;
+                const maxX = d3.max(validPositions, p => p.x) + padX;
+                const minY = d3.min(validPositions, p => p.y) - padY;
+                const maxY = d3.max(validPositions, p => p.y) + padY;
+
+                g.insert("rect", ":first-child").attr("class", className).attr("x", minX).attr("y", minY)
+                    .attr("width", maxX - minX).attr("height", maxY - minY).attr("rx", 15);
+            };
+
+            phases.forEach(phase => drawRectBoundary(Array.from(contexts.values()).filter(c => c.phaseId === phase.id).map(c=>c.id), 'phase-boundary'));
+            groups.forEach(group => drawRectBoundary(Array.from(group.contexts), 'group-boundary'));
+            subGroups.forEach(subGroup => drawRectBoundary(Array.from(subGroup.contexts), 'subgroup-boundary'));
+        }
+
+        // Event Handlers
+        let wasDragged = false;
+        function handleCanvasClick(event) {
+            if (event.defaultPrevented) return;
+            const [x, y] = d3.pointer(event, g.node());
+            showContextModal(x, y);
+        }
+        
+        function showContextModal(x, y) {
+            const modal = document.getElementById("contextModal");
+            modal.style.display = "flex";
+            const input = document.getElementById("newContextId");
+            input.value = suggestNextContextId();
+            input.focus();
+            
+            document.getElementById("confirmContextBtn").onclick = () => {
+                const id = document.getElementById("newContextId").value.trim().toUpperCase();
+                if (!id || contexts.has(id)) { alert(`Context "${id}" is invalid or already exists.`); return; }
+                const context = new ArchaeologicalContext(id, x, y);
+                context.type = document.getElementById("contextType").value;
+                context.description = document.getElementById("contextDescription").value.trim();
+                const earliest = document.getElementById("earliestDate").value, latest = document.getElementById("latestDate").value;
+                if(earliest && latest) {
+                    context.earliestDate = parseInt(earliest);
+                    context.latestDate = parseInt(latest);
+                    context.dateType = document.getElementById("dateType").value;
+                }
+                contexts.set(id, context);
+                hideModals(); updateUI();
+            };
+        }
+
+        function showEditNodeModal(contextId) {
+            const modal = document.getElementById("editNodeModal");
+            modal.style.display = "flex";
+            const context = contexts.get(contextId);
+            
+            document.getElementById("editNodeModalTitle").innerText = `Edit Context: ${contextId}`;
+            document.getElementById("editNodeIdInput").value = contextId;
+            document.getElementById("editContextType").value = context.type;
+            document.getElementById("editContextDescription").value = context.description;
+            document.getElementById("editEarliestDate").value = context.earliestDate || '';
+            document.getElementById("editLatestDate").value = context.latestDate || '';
+            document.getElementById("editDateType").value = context.dateType || '';
+            document.getElementById("editGroupAssignment").value = context.groupId || '';
+            document.getElementById("editSubGroupAssignment").value = context.subGroupId || '';
+            document.getElementById("editPhaseAssignment").value = context.phaseId || '';
+            
+            document.getElementById("saveNodeBtn").onclick = () => saveNodeChanges(contextId);
+            document.getElementById("deleteNodeBtn").onclick = () => deleteContext(contextId);
+        }
+
+        function saveNodeChanges(oldId) {
+            const newId = document.getElementById('editNodeIdInput').value.trim().toUpperCase();
+            if (!newId || (newId !== oldId && contexts.has(newId))) { alert("Context ID is invalid or already exists."); return; }
+            const context = contexts.get(oldId);
+            
+            if (context.groupId) groups.get(context.groupId)?.contexts.delete(oldId);
+            if (context.subGroupId) subGroups.get(context.subGroupId)?.contexts.delete(oldId);
+            
+            context.type = document.getElementById('editContextType').value;
+            context.description = document.getElementById('editContextDescription').value.trim();
+            const earliest = document.getElementById('editEarliestDate').value;
+            const latest = document.getElementById('editLatestDate').value;
+            context.earliestDate = earliest ? parseInt(earliest) : null;
+            context.latestDate = latest ? parseInt(latest) : null;
+            context.dateType = document.getElementById('editDateType').value;
+            
+            const newGroupId = document.getElementById('editGroupAssignment').value || null;
+            const newSubGroupId = document.getElementById('editSubGroupAssignment').value || null;
+            const newPhaseId = document.getElementById('editPhaseAssignment').value || null;
+
+            context.groupId = newGroupId;
+            context.subGroupId = newSubGroupId;
+            context.phaseId = newPhaseId;
+            
+            if (newId !== oldId) {
+                context.id = newId;
+                contexts.set(newId, context);
+                contexts.delete(oldId);
+                relationships.forEach(rel => {
+                    if (rel.from === oldId) rel.from = newId;
+                    if (rel.to === oldId) rel.to = newId;
+                });
+            }
+
+            if (newGroupId) {
+                const group = groups.get(newGroupId);
+                group?.contexts.add(newId);
+                if (newSubGroupId) {
+                    group?.subGroups.add(newSubGroupId); 
+                }
+            }
+            if (newSubGroupId) {
+                subGroups.get(newSubGroupId)?.contexts.add(newId);
+            }
+
+            hideModals(); 
+            updateUI();
+        }
+
+        function showRelationshipModal(sourceId, targetId) {
+            const modal = document.getElementById("relationshipModal");
+            modal.style.display = "flex";
+            document.getElementById("relationshipModalTitle").innerText = `Define Relationship: ${sourceId} → ${targetId}`;
+            const select = document.getElementById("relationshipType");
+            select.innerHTML = `<optgroup label="Direct Pairing"><option value="fill_of">${sourceId} is FILL OF ${targetId}</option><option value="filled_by">${sourceId} is FILLED BY ${targetId}</option></optgroup><optgroup label="Stratigraphic"><option value="above">${sourceId} is ABOVE ${targetId}</option><option value="below">${sourceId} is BELOW ${targetId}</option><option value="seals">${sourceId} SEALS ${targetId}</option><option value="sealed_by">${sourceId} is SEALED BY ${targetId}</option></optgroup><optgroup label="Cutting"><option value="cuts">${sourceId} CUTS ${targetId}</option><option value="cut_by">${sourceId} is CUT BY ${targetId}</option></optgroup><optgroup label="Contemporary"><option value="contemporary_with">Contemporary With</option><option value="equivalent">Equivalent To</option><option value="same_as">Same As</option></optgroup>`;
+            document.getElementById("confirmRelationshipBtn").onclick = () => {
+                relationships.push({from: sourceId, to: targetId, type: select.value});
+                hideModals(); updateUI();
+            };
+        }
+
+        // Drag handlers
+        function dragstarted(event) { 
+            event.sourceEvent.stopPropagation();
+            d3.select(this).raise().classed("dragging", true); 
+            wasDragged = false;
+        }
+        function dragged(event) {
+            wasDragged = true;
+            d3.select(this).attr("transform", `translate(${event.x}, ${event.y})`); 
+        }
+        function dragended(event, d) {
+            d3.select(this).classed("dragging", false);
+            
+            if (wasDragged) {
+                const sourceId = d;
+                let targetId = null;
+                for (const [id] of contexts.entries()) {
+                    if (sourceId === id) continue;
+                    const pos = nodePositions[id];
+                    if (pos && event.x > pos.x - 45 && event.x < pos.x + 45 && event.y > pos.y - 22.5 && event.y < pos.y + 22.5) {
+                        targetId = id; break;
+                    }
+                }
+                if (targetId) {
+                    showRelationshipModal(sourceId, targetId);
+                }
+                applySugiyamaLayout();
+            } else {
+                // This is the click event
+                showEditNodeModal(d);
+            }
+        }
+
+        // Utility functions
+        function suggestNextContextId() {
+            if (contexts.size === 0) return "1001";
+            const numbers = Array.from(contexts.keys()).map(id => parseInt(id.match(/\d+$/)?.[0])).filter(n => !isNaN(n));
+            return numbers.length > 0 ? (Math.max(...numbers) + 1).toString() : (1000 + contexts.size + 1).toString();
+        }
+
+        function hideModals() { document.querySelectorAll('.modal-backdrop').forEach(m => m.style.display = 'none'); }
+        function removeRelationship(index) { relationships.splice(index, 1); updateUI(); }
+        function resetZoom() { svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity); }
+        function confirmClear() { if (window.confirm("Delete all data? This cannot be undone.")) {
+            localStorage.removeItem('harrisMatrixData'); location.reload(); }
+        }
+
+        function deleteContext(contextId) {
+            if (window.confirm(`Are you sure you want to delete context "${contextId}" and all its relationships?`)) {
+                const context = contexts.get(contextId);
+                if (context.groupId) groups.get(context.groupId)?.contexts.delete(contextId);
+                if (context.subGroupId) subGroups.get(context.subGroupId)?.contexts.delete(contextId);
+                contexts.delete(contextId);
+                relationships = relationships.filter(rel => rel.from !== contextId && rel.to !== contextId);
+                temporalConflicts = temporalConflicts.filter(c => c.context1 !== contextId && c.context2 !== contextId);
+                hideModals(); updateUI();
+            }
+        }
+        
+        function highlightPhase(id) { highlightBy(c => c.phaseId === id, '#4caf50'); }
+        function highlightGroup(id) { highlightBy(c => c.groupId === id, '#ff9800'); }
+        function highlightSubGroup(id) { highlightBy(c => c.subGroupId === id, '#9c27b0'); }
+        function highlightContext(id) { highlightBy(c => c.id === id, 'gold'); }
+        function highlightBy(filterFn, color) {
+            g.selectAll('.context-node-group').each(function() {
+                const node = d3.select(this);
+                const rect = node.select('rect');
+                const isSelected = filterFn(contexts.get(node.datum()));
+                rect.transition().duration(300)
+                    .attr('stroke-width', isSelected ? '4px' : '2px')
+                    .attr('stroke', isSelected ? color : (rect.classed('temporal-conflict') ? '#c82333' : (rect.classed('phased') ? '#1e7e34' : (rect.classed('grouped') ? '#e0a800' : 'var(--primary-accent-hover)'))));
+            });
+        }
+        
+        // Data Persistence
+        function saveToStorage() {
+            const data = {
+                contexts: Array.from(contexts.entries()),
+                relationships,
+                groups: Array.from(groups.entries()).map(([id, group]) => [id, { ...group, contexts: Array.from(group.contexts), subGroups: Array.from(group.subGroups) }]),
+                subGroups: Array.from(subGroups.entries()).map(([id, subGroup]) => [id, { ...subGroup, contexts: Array.from(subGroup.contexts) }]),
+                phases: Array.from(phases.entries()),
+            };
+            localStorage.setItem('harrisMatrixData', JSON.stringify(data));
+        }
+
+        function loadFromStorage() {
+            const rawData = localStorage.getItem('harrisMatrixData');
+            if (!rawData) return;
+            const data = JSON.parse(rawData);
+            
+            contexts = new Map(data.contexts.map(([id, obj]) => [id, Object.assign(new ArchaeologicalContext(id), obj)]));
+            relationships = data.relationships || [];
+            groups = new Map((data.groups || []).map(([id, obj]) => [id, Object.assign(new HierarchicalGroup(id), { ...obj, contexts: new Set(obj.contexts), subGroups: new Set(obj.subGroups) })]));
+            subGroups = new Map((data.subGroups || []).map(([id, obj]) => [id, Object.assign(new HierarchicalGroup(id), { ...obj, contexts: new Set(obj.contexts) })]));
+            phases = new Map((data.phases || []).map(([id, obj]) => [id, Object.assign(new HierarchicalGroup(id), obj)]));
+        }
+        
+        // CSV Export
+        function exportEnhancedData() {
+            if (contexts.size === 0) { alert("No data to export."); return; }
+            let csvContent = "data:text/csv;charset=utf-8,";
+            const headers = ["Context_ID", "Context_Type", "Description", "Earliest_Date_CE", "Latest_Date_CE", "Date_Type", "Phase_ID", "Phase_Name", "Group_ID", "Group_Name", "Sub-Group_ID", "Sub-Group_Name", "Relationship_Type", "Related_Context_ID", "Temporal_Conflict"];
+            csvContent += headers.join(",") + "\r\n";
+
+            contexts.forEach(context => {
+                const group = context.groupId ? groups.get(context.groupId) : null;
+                const subGroup = context.subGroupId ? subGroups.get(context.subGroupId) : null;
+                const phase = context.phaseId ? phases.get(context.phaseId) : null;
+                const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
+
+                const relsForContext = relationships.filter(r => r.from === context.id);
+                const hasConflict = temporalConflicts.some(c => c.context1 === context.id || c.context2 === context.id);
+                const baseRow = [escapeCSV(context.id), escapeCSV(context.type), escapeCSV(context.description), context.earliestDate ?? '', context.latestDate ?? '', escapeCSV(context.dateType), escapeCSV(context.phaseId), escapeCSV(phase?.name), escapeCSV(context.groupId), escapeCSV(group?.name), escapeCSV(context.subGroupId), escapeCSV(subGroup?.name)];
+
+                if (relsForContext.length > 0) {
+                    relsForContext.forEach(rel => {
+                         csvContent += [...baseRow, escapeCSV(rel.type), escapeCSV(rel.to), hasConflict].join(",") + "\r\n";
+                    });
+                } else {
+                    csvContent += [...baseRow, '', '', hasConflict].join(",") + "\r\n";
+                }
+            });
+
+            const link = document.createElement("a");
+            link.setAttribute("href", encodeURI(csvContent));
+            link.setAttribute("download", "enhanced_harris_matrix_data.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+    </script>
+</body>
+</html>
