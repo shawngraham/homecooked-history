@@ -77,7 +77,7 @@
         .relationship-path { fill: none; stroke-linejoin: round; stroke-linecap: round; }
         .relationship-path.stratigraphic { stroke: #495057; stroke-width: 2px; marker-end: url(#arrowhead); }
         .relationship-path.cuts { stroke: var(--danger-accent); stroke-width: 2.5px; stroke-dasharray: 6,4; marker-end: url(#arrowhead-cuts); }
-        .relationship-path.contemporary { stroke: var(--success-accent); stroke-width: 2px; stroke-dasharray: 2,4; }
+        .relationship-path.contemporary { stroke: #495057; stroke-width: 1.5px; }
         .relationship-path.temporal-conflict { stroke: var(--danger-accent); stroke-width: 3px; animation: pulse 2s infinite; marker-end: url(#arrowhead-cuts); }
         .relationship-path.redundant { stroke: #adb5bd; stroke-width: 1.5px; stroke-dasharray: 2, 3; marker-end: url(#arrowhead-redundant); }
         
@@ -163,7 +163,7 @@
         <div class="header">
             <h1>Graham's Harris Matrix Tool</h1>
             <p>Archaeological stratigraphy data entry tool and visualizer with hierarchical grouping and temporal validation</p>
-            <p style="font-size: 12px; font-style: italic;">Click background to create contexts • Drag contexts to create relationships • Create groups etc once contexts are created • Click on contexts to edit, assign dates, groups • Scroll to zoom, drag background to pan</p>
+            <p style="font-size: 12px; font-style: italic;">Click background to create contexts • Drag contexts to create relationships • Click on contexts to edit • Scroll to zoom, drag background to pan</p>
         </div>
         
         <div class="workspace">
@@ -197,6 +197,7 @@
                     <button onclick="analyzeTemporalConflicts()" class="btn-primary">Analyze Conflicts</button>
                     <button onclick="resetZoom()" class="btn-primary">Reset View</button>
                     <button onclick="exportEnhancedData()" class="btn-success">Export Enhanced CSV</button>
+                    <button onclick="exportViewAsSVG()" class="btn-primary">Export View as SVG</button>
                     <button onclick="confirmClear()" class="btn-danger">Clear All</button>
                 </div>
             </div>
@@ -442,7 +443,7 @@
 
         function applySugiyamaLayout() {
             if (contexts.size === 0) { g.selectAll(".context-node-group, .relationship-path, .group-boundary, .subgroup-boundary, .phase-boundary").remove(); return; }
-            const { levels, stratigraphicEdges, contemporaryLinks, hasCycle } = calculateInitialLevels();
+            const { levels, stratigraphicEdges, contemporaryLinks, hasCycle, equivalenceInfo } = calculateInitialLevels();
 
             if (hasCycle) {
                 const cyclicNodeIds = Array.from(contexts.keys()).filter(id => !levels.has(id));
@@ -454,14 +455,38 @@
             const allNodes = new Map([...contexts, ...dummyNodes]);
             const orderedLevels = reduceCrossings(levels, allNodes, allEdges);
             nodePositions = assignCoordinates(orderedLevels, levels, dummyNodes);
-            drawMatrix(nodePositions, allEdges, contemporaryLinks);
+            drawMatrix(nodePositions, allEdges, contemporaryLinks, equivalenceInfo);
         }
 
         // --- Display and UI Panel Updates ---
         function updateHierarchyDisplay() {
             const listDiv = document.getElementById("hierarchyList");
             let html = '';
-            // Phase, Group, and Sub-Group display logic... (omitted for brevity, but it is present)
+            
+            if (phases.size > 0) {
+                html += '<div style="font-weight: bold; margin: 10px 0;">Phases</div>';
+                phases.forEach(phase => {
+                    const phaseContextIds = Array.from(contexts.values()).filter(c => c.phaseId === phase.id).map(c => c.id);
+                    const hasConflicts = temporalConflicts.some(c => phaseContextIds.includes(c.context1) || phaseContextIds.includes(c.context2));
+                    html += `<div class="hierarchy-item phase ${hasConflicts ? 'temporal-conflict' : ''}" onclick="highlightPhase('${phase.id}')"><div class="item-header">Phase: ${phase.name}${hasConflicts ? '<span class="conflict-indicator"></span>' : '<span class="valid-indicator"></span>'}</div><div class="item-details">${phase.description}</div><div class="item-contexts">${phaseContextIds.length} contexts</div></div>`;
+                });
+            }
+            
+            if (groups.size > 0) {
+                html += '<div style="font-weight: bold; margin: 10px 0;">Groups</div>';
+                groups.forEach(group => {
+                    const groupContextIds = Array.from(group.contexts);
+                    const hasConflicts = temporalConflicts.some(c => groupContextIds.includes(c.context1) || groupContextIds.includes(c.context2));
+                    html += `<div class="hierarchy-item group ${hasConflicts ? 'temporal-conflict' : ''}" onclick="highlightGroup('${group.id}')"><div class="item-header">Group: ${group.name} (${group.type})${hasConflicts ? '<span class="conflict-indicator"></span>' : '<span class="valid-indicator"></span>'}</div><div class="item-details">${group.description}</div><div class="item-contexts">${group.contexts.size} contexts</div></div>`;
+                    group.subGroups.forEach(subGroupId => {
+                        const subGroup = subGroups.get(subGroupId);
+                        if (subGroup) {
+                             html += `<div class="hierarchy-item subgroup" onclick="highlightSubGroup('${subGroup.id}')"><div class="item-header">Sub-group: ${subGroup.name}</div><div class="item-details">${subGroup.description}</div><div class="item-contexts">${subGroup.contexts.size} contexts</div></div>`;
+                        }
+                    });
+                });
+            }
+            
             const unassigned = Array.from(contexts.values()).filter(c => !c.groupId && !c.phaseId);
             if (unassigned.length > 0) {
                 html += '<div style="font-weight: bold; margin: 10px 0;">Unassigned Contexts</div>';
@@ -571,40 +596,103 @@
         }
 
         // --- Layout Algorithm Functions ---
+        function findEquivalenceGroups(contexts, relationships) {
+            const adj = new Map(Array.from(contexts.keys()).map(id => [id, []]));
+            relationships.forEach(rel => {
+                if (['contemporary_with', 'equivalent', 'same_as'].includes(rel.type)) {
+                    adj.get(rel.from)?.push(rel.to);
+                    adj.get(rel.to)?.push(rel.from);
+                }
+            });
+
+            const visited = new Set();
+            const contextToGroupRep = new Map();
+            const groupRepToMembers = new Map();
+
+            for (const contextId of contexts.keys()) {
+                if (!visited.has(contextId)) {
+                    const groupMembers = new Set();
+                    const queue = [contextId];
+                    visited.add(contextId);
+                    
+                    while (queue.length > 0) {
+                        const u = queue.shift();
+                        groupMembers.add(u);
+                        (adj.get(u) || []).forEach(v => {
+                            if (!visited.has(v)) {
+                                visited.add(v);
+                                queue.push(v);
+                            }
+                        });
+                    }
+
+                    if (groupMembers.size > 1) {
+                        const representative = contextId;
+                        groupRepToMembers.set(representative, groupMembers);
+                        groupMembers.forEach(memberId => {
+                            contextToGroupRep.set(memberId, representative);
+                        });
+                    }
+                }
+            }
+            return { contextToGroupRep, groupRepToMembers };
+        }
+
         function calculateInitialLevels() {
             const contextIds = Array.from(contexts.keys());
-            if (contextIds.length === 0) return { levels: new Map(), stratigraphicEdges: [], contemporaryLinks: [], hasCycle: false };
-            const adj = new Map(contextIds.map(id => [id, []]));
-            const inDegree = new Map(contextIds.map(id => [id, 0]));
+            if (contextIds.length === 0) return { levels: new Map(), stratigraphicEdges: [], contemporaryLinks: [], hasCycle: false, equivalenceInfo: { contextToGroupRep: new Map(), groupRepToMembers: new Map() } };
+            
+            const equivalenceInfo = findEquivalenceGroups(contexts, relationships);
+            const { contextToGroupRep } = equivalenceInfo;
+            
+            const logicalNodes = new Set(contextIds.map(id => contextToGroupRep.get(id) || id));
+            const adj = new Map(Array.from(logicalNodes).map(id => [id, []]));
+            const inDegree = new Map(Array.from(logicalNodes).map(id => [id, 0]));
             const stratigraphicEdges = [];
             const contemporaryLinks = [];
+
             relationships.forEach((rel, index) => {
                 let from, to;
                 if (['above', 'seals', 'cuts', 'filled_by'].includes(rel.type)) { [from, to] = [rel.to, rel.from]; } 
                 else if (['below', 'sealed_by', 'cut_by', 'fill_of'].includes(rel.type)) { [from, to] = [rel.from, rel.to]; } 
                 else if (['contemporary_with', 'equivalent', 'same_as'].includes(rel.type)) { contemporaryLinks.push({ from: rel.from, to: rel.to }); }
                 if (from && to && contexts.has(from) && contexts.has(to)) {
-                    adj.get(from)?.push(to);
-                    inDegree.set(to, (inDegree.get(to) || 0) + 1);
+                    const repFrom = contextToGroupRep.get(from) || from;
+                    const repTo = contextToGroupRep.get(to) || to;
+
+                    if (repFrom !== repTo) {
+                        if (!adj.get(repFrom)?.includes(repTo)) {
+                           adj.get(repFrom)?.push(repTo);
+                           inDegree.set(repTo, (inDegree.get(repTo) || 0) + 1);
+                        }
+                    }
                     stratigraphicEdges.push({ from, to, isCut: ['cuts', 'cut_by'].includes(rel.type), originalIndex: index });
                 }
             });
+
             const levels = new Map();
-            const queue = contextIds.filter(id => inDegree.get(id) === 0);
-            const processedNodes = [];
+            const queue = Array.from(logicalNodes).filter(id => inDegree.get(id) === 0);
+            const processedLogicalNodes = [];
             for (let i = 0; i < queue.length; i++) {
-                const u = queue[i];
-                processedNodes.push(u);
-                levels.set(u, levels.get(u) || 0);
-                (adj.get(u) || []).forEach(v => {
-                    levels.set(v, Math.max(levels.get(v) || 0, levels.get(u) + 1));
-                    inDegree.set(v, inDegree.get(v) - 1);
-                    if (inDegree.get(v) === 0) queue.push(v);
+                const u_rep = queue[i];
+                processedLogicalNodes.push(u_rep);
+                levels.set(u_rep, levels.get(u_rep) || 0);
+                (adj.get(u_rep) || []).forEach(v_rep => {
+                    levels.set(v_rep, Math.max(levels.get(v_rep) || 0, levels.get(u_rep) + 1));
+                    inDegree.set(v_rep, inDegree.get(v_rep) - 1);
+                    if (inDegree.get(v_rep) === 0) queue.push(v_rep);
                 });
             }
-            const hasCycle = processedNodes.length < contextIds.length;
-            if (!hasCycle) { contextIds.forEach(id => { if (!levels.has(id)) levels.set(id, 0); }); }
-            return { levels, stratigraphicEdges, contemporaryLinks, hasCycle };
+
+            const hasCycle = processedLogicalNodes.length < logicalNodes.size;
+            const finalLevels = new Map();
+            if (!hasCycle) {
+                contextIds.forEach(id => {
+                    const rep = contextToGroupRep.get(id) || id;
+                    finalLevels.set(id, levels.get(rep) || 0);
+                });
+            }
+            return { levels: finalLevels, stratigraphicEdges, contemporaryLinks, hasCycle, equivalenceInfo };
         }
 
         function createDummyNodesAndEdges(edges, levels) {
@@ -707,8 +795,8 @@
             gridGroup.selectAll("line.vertical").data(d3.range(-gridSize, gridSize, GRID_CELL_SIZE)).enter().append("line").attr("class", "vertical").attr("x1", d => d).attr("y1", -gridSize).attr("x2", d => d).attr("y2", gridSize).style("stroke", GRID_COLOR).style("stroke-width", 1);
             gridGroup.selectAll("line.horizontal").data(d3.range(-gridSize, gridSize, GRID_CELL_SIZE)).enter().append("line").attr("class", "horizontal").attr("x1", -gridSize).attr("y1", d => d).attr("x2", gridSize).attr("y2", d => d).style("stroke", GRID_COLOR).style("stroke-width", 1);
         }
-
-        function drawMatrix(positions, allEdges, contemporaryLinks) {
+        
+        function drawMatrix(positions, allEdges, contemporaryLinks, equivalenceInfo) {
             g.selectAll(".context-node-group, .relationship-path, .group-boundary, .subgroup-boundary, .phase-boundary, defs").remove();
             const defs = g.append("defs");
             defs.append("marker").attr("id", "arrowhead").attr("viewBox", "-2 -5 10 10").attr("refX", 5).attr("refY", 0).attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5").style("fill", "#495057");
@@ -718,30 +806,55 @@
             drawGroupBoundaries(positions);
             const redundantRelationIndices = findRedundantRelationships();
 
+            const getEdgeClasses = (edge) => {
+                const isRedundant = redundantRelationIndices.has(edge.originalIndex);
+                if (isRedundant) return 'relationship-path redundant';
+                
+                const originalRel = relationships[edge.originalIndex];
+                if (!originalRel) return 'relationship-path stratigraphic';
+
+                const hasConflict = temporalConflicts.some(c => (c.context1 === originalRel.from && c.context2 === originalRel.to) || (c.context1 === originalRel.to && c.context2 === originalRel.from));
+                if (hasConflict) return 'relationship-path temporal-conflict';
+
+                const isCut = ['cuts', 'cut_by'].includes(originalRel.type);
+                return `relationship-path ${isCut ? 'cuts' : 'stratigraphic'}`;
+            };
+            
+            const BOX_HALF_HEIGHT = 22.5, BOX_HALF_WIDTH = 45;
+
+            // Draw all stratigraphic relationships with a simple, robust elbow connector.
             allEdges.forEach(edge => {
                 const p1 = positions[edge.from];
                 const p2 = positions[edge.to];
                 if (!p1 || !p2) return;
-                const pathData = `M ${p1.x},${p1.y} V ${p2.y} H ${p2.x}`;
-                const hasConflict = temporalConflicts.some(c => (c.context1 === edge.from && c.context2 === edge.to) || (c.context1 === edge.to && c.context2 === edge.from));
-                const isRedundant = redundantRelationIndices.has(edge.originalIndex);
-                const classList = `relationship-path ${isRedundant ? 'redundant' : (hasConflict ? 'temporal-conflict' : (edge.isCut ? 'cuts' : 'stratigraphic'))}`;
-                g.append("path").attr("class", classList).attr("d", pathData);
+                
+                const startY = p1.y + (contexts.has(edge.from) ? BOX_HALF_HEIGHT : 0);
+                const endY = p2.y - (contexts.has(edge.to) ? BOX_HALF_HEIGHT : 0);
+                
+                const midY = startY + (endY - startY) / 2;
+                const pathData = `M ${p1.x},${startY} V ${midY} H ${p2.x} V ${endY}`;
+                g.append("path").attr("class", getEdgeClasses(edge)).attr("d", pathData);
             });
 
+            // Draw contemporary links with the double bar.
             contemporaryLinks.forEach(link => {
                 const p1 = positions[link.from];
                 const p2 = positions[link.to];
                 if (!p1 || !p2) return;
-                g.append("line").attr("class", "relationship-path contemporary").attr("x1", p1.x).attr("y1", p1.y).attr("x2", p2.x).attr("y2", p2.y);
+                const yOffset = 2.5;
+                const x1 = p1.x < p2.x ? p1.x + BOX_HALF_WIDTH : p1.x - BOX_HALF_WIDTH;
+                const x2 = p1.x < p2.x ? p2.x - BOX_HALF_WIDTH : p2.x + BOX_HALF_WIDTH;
+                g.append("line").attr("class", "relationship-path contemporary").attr("x1", x1).attr("y1", p1.y - yOffset).attr("x2", x2).attr("y2", p2.y - yOffset);
+                g.append("line").attr("class", "relationship-path contemporary").attr("x1", x1).attr("y1", p1.y + yOffset).attr("x2", x2).attr("y2", p2.y + yOffset);
             });
 
+            // Draw the nodes on top of the lines.
             const nodeData = Array.from(contexts.keys()).filter(id => positions[id]);
             const nodeGroups = g.selectAll(".context-node-group").data(nodeData, d => d).join("g")
                 .attr("class", "context-node-group")
                 .attr("transform", d => `translate(${positions[d].x}, ${positions[d].y})`)
                 .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
-            nodeGroups.append("rect").attr("class", d => "context-node " + (temporalConflicts.some(c => c.context1 === d || c.context2 === d) ? "temporal-conflict" : (contexts.get(d)?.phaseId ? "phased" : (contexts.get(d)?.groupId ? "grouped" : "")))).attr("x", -45).attr("y", -22.5).attr("width", 90).attr("height", 45).attr("rx", 8);
+            nodeGroups.append("rect").attr("class", d => "context-node " + (temporalConflicts.some(c => c.context1 === d || c.context2 === d) ? "temporal-conflict" : (contexts.get(d)?.phaseId ? "phased" : (contexts.get(d)?.groupId ? "grouped" : "")))).attr("x", -BOX_HALF_WIDTH).attr("y", -BOX_HALF_HEIGHT).attr("width", BOX_HALF_WIDTH*2).attr("height", BOX_HALF_HEIGHT*2).attr("rx", 8);
             nodeGroups.append("text").attr("class", "context-label").attr("dy", "0.35em").text(d => d);
         }
 
@@ -828,30 +941,36 @@
             hideModals(); updateUI();
         }
 
-        // This is the only function that needs to be changed.
-
-function showRelationshipModal(sourceId, targetId) {
-    const modal = document.getElementById("relationshipModal");
-    modal.style.display = "flex";
-    document.getElementById("relationshipModalTitle").innerText = `Define Relationship: ${sourceId} → ${targetId}`;
-    const select = document.getElementById("relationshipType");
-    select.innerHTML = `<optgroup label="Direct Pairing"><option value="fill_of">${sourceId} is FILL OF ${targetId}</option><option value="filled_by">${sourceId} is FILLED BY ${targetId}</option></optgroup><optgroup label="Stratigraphic"><option value="above">${sourceId} is ABOVE ${targetId}</option><option value="below">${sourceId} is BELOW ${targetId}</option><option value="seals">${sourceId} SEALS ${targetId}</option><option value="sealed_by">${sourceId} is SEALED BY ${targetId}</option></optgroup><optgroup label="Cutting"><option value="cuts">${sourceId} CUTS ${targetId}</option><option value="cut_by">${sourceId} is CUT BY ${targetId}</option></optgroup><optgroup label="Contemporary"><option value="contemporary_with">Contemporary With</option><option value="equivalent">Equivalent To</option><option value="same_as">Same As</option></optgroup>`;
-    
-    document.getElementById("confirmRelationshipBtn").onclick = () => {
-        // *** NEW LOGIC STARTS HERE ***
-        const context1 = contexts.get(sourceId);
-        const context2 = contexts.get(targetId);
-
-        // "Un-fix" the nodes to allow the layout algorithm to position them.
-        if (context1) context1.fixed = false;
-        if (context2) context2.fixed = false;
-        // *** NEW LOGIC ENDS HERE ***
-
-        relationships.push({ from: sourceId, to: targetId, type: select.value });
-        hideModals();
-        updateUI(); // Now, when updateUI runs, the layout will correctly reposition the nodes.
-    };
-}
+        function showRelationshipModal(sourceId, targetId) {
+            const modal = document.getElementById("relationshipModal"); modal.style.display = "flex"; document.getElementById("relationshipModalTitle").innerText = `Define Relationship: ${sourceId} → ${targetId}`; const select = document.getElementById("relationshipType");
+            select.innerHTML = `<optgroup label="Direct Pairing"><option value="fill_of">${sourceId} is FILL OF ${targetId}</option><option value="filled_by">${sourceId} is FILLED BY ${targetId}</option></optgroup><optgroup label="Stratigraphic"><option value="above">${sourceId} is ABOVE ${targetId}</option><option value="below">${sourceId} is BELOW ${targetId}</option><option value="seals">${sourceId} SEALS ${targetId}</option><option value="sealed_by">${sourceId} is SEALED BY ${targetId}</option></optgroup><optgroup label="Cutting"><option value="cuts">${sourceId} CUTS ${targetId}</option><option value="cut_by">${sourceId} is CUT BY ${targetId}</option></optgroup><optgroup label="Contemporary"><option value="contemporary_with">Contemporary With</option><option value="equivalent">Equivalent To</option><option value="same_as">Same As</option></optgroup>`;
+            document.getElementById("confirmRelationshipBtn").onclick = () => { 
+                const context1 = contexts.get(sourceId);
+                const context2 = contexts.get(targetId);
+                if (context1) context1.fixed = false;
+                if (context2) context2.fixed = false;
+                relationships.push({ from: sourceId, to: targetId, type: select.value }); hideModals(); updateUI(); 
+            };
+        }
+        
+        function createGroup() {
+            currentModalType = 'group'; document.getElementById("groupModal").style.display = "flex"; document.getElementById("groupModalTitle").innerText = "Create Group"; document.getElementById("groupTypeWrapper").style.display = 'block'; document.getElementById("groupName").value = ''; document.getElementById("groupDescription").value = ''; document.getElementById("confirmGroupBtn").onclick = confirmCreateGroup;
+        }
+        function confirmCreateGroup() {
+            const name = document.getElementById("groupName").value.trim(); if (!name) { alert("Group name is required."); return; } const id = `group_${Date.now()}`; const group = new HierarchicalGroup(id, name, document.getElementById("groupType").value); group.description = document.getElementById("groupDescription").value.trim(); groups.set(id, group); hideModals(); updateUI();
+        }
+        function createSubGroup() {
+            if (groups.size === 0) { alert("Please create a parent group first."); return; } currentModalType = 'subgroup'; document.getElementById("groupModal").style.display = "flex"; document.getElementById("groupModalTitle").innerText = "Create Sub-Group"; document.getElementById("groupTypeWrapper").style.display = 'none'; document.getElementById("groupName").value = ''; document.getElementById("groupDescription").value = ''; document.getElementById("confirmGroupBtn").onclick = confirmCreateSubGroup;
+        }
+        function confirmCreateSubGroup() {
+            const name = document.getElementById("groupName").value.trim(); if (!name) { alert("Sub-group name is required."); return; } const id = `subgroup_${Date.now()}`; const subGroup = new HierarchicalGroup(id, name, 'subgroup'); subGroup.description = document.getElementById("groupDescription").value.trim(); subGroups.set(id, subGroup); hideModals(); updateUI();
+        }
+        function createPhase() {
+            currentModalType = 'phase'; document.getElementById("groupModal").style.display = "flex"; document.getElementById("groupModalTitle").innerText = "Create Phase"; document.getElementById("groupTypeWrapper").style.display = 'none'; document.getElementById("groupName").value = ''; document.getElementById("groupDescription").value = ''; document.getElementById("confirmGroupBtn").onclick = confirmCreatePhase;
+        }
+        function confirmCreatePhase() {
+            const name = document.getElementById("groupName").value.trim(); if (!name) { alert("Phase name is required."); return; } const id = `phase_${Date.now()}`; const phase = new HierarchicalGroup(id, name, 'phase'); phase.description = document.getElementById("groupDescription").value.trim(); phases.set(id, phase); hideModals(); updateUI();
+        }
 
         // --- Utility Functions ---
         function parseDateFromInputs(year, era) { if (isNaN(year) || year <= 0) return null; return era === 'BCE' ? -year : year; }
@@ -890,7 +1009,7 @@ function showRelationshipModal(sourceId, targetId) {
             phases = new Map((data.phases || []).map(([id, obj]) => [id, Object.assign(new HierarchicalGroup(id), obj)]));
         }
         
-        // --- CSV Export ---
+        // --- Export Functions ---
         function exportEnhancedData() {
             if (contexts.size === 0) { alert("No data to export."); return; }
             let csvContent = "data:text/csv;charset=utf-8,";
@@ -919,6 +1038,50 @@ function showRelationshipModal(sourceId, targetId) {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        }
+
+        function getContentBBox() {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            let hasContent = false;
+            g.selectAll(".context-node-group, .relationship-path, .group-boundary, .subgroup-boundary, .phase-boundary")
+              .each(function() {
+                  const bbox = this.getBBox();
+                  if (bbox.width === 0 && bbox.height === 0) return; 
+                  hasContent = true;
+                  minX = Math.min(minX, bbox.x); minY = Math.min(minY, bbox.y);
+                  maxX = Math.max(maxX, bbox.x + bbox.width); maxY = Math.max(maxY, bbox.y + bbox.height);
+              });
+            if (!hasContent) { return { x: 0, y: 0, width: 0, height: 0 }; }
+            return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+        }
+        
+        function triggerSVGFiledownload(svgString) {
+            const blob = new Blob([svgString], { type: "image/svg+xml" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url; link.download = "harris_matrix.svg";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function exportViewAsSVG() {
+            const bbox = getContentBBox();
+            if (bbox.width === 0 || bbox.height === 0) { alert("There is nothing to export."); return; }
+            const gridGroup = g.select(".grid-group");
+            gridGroup.style("display", "none");
+            const svgContent = g.node().innerHTML;
+            gridGroup.style("display", null);
+            let cssStyles = "";
+            for (const sheet of document.styleSheets) {
+                try {
+                    for (const rule of sheet.cssRules) { cssStyles += rule.cssText + "\n"; }
+                } catch (e) { console.warn("Could not read CSS rules; this can happen with external stylesheets.", e); }
+            }
+            const padding = 40;
+            const standaloneSvgString = `<svg width="${bbox.width + padding * 2}" height="${bbox.height + padding * 2}" viewBox="${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}" xmlns="http://www.w3.org/2000/svg"><style>${cssStyles}</style>${svgContent}</svg>`;
+            triggerSVGFiledownload(standaloneSvgString);
         }
     </script>
 </body>
