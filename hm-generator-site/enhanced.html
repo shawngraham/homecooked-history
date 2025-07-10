@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Graham's Harris Matrix Tool</title>
+    <title>Enhanced Harris Matrix Tool</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <style>
         :root {
@@ -190,20 +190,67 @@
                 </div>
                 
                 <div class="actions-panel">
+                    <button onclick="resetZoom()" class="btn-primary">Reset View</button>
                     <h3>Management Tools</h3>
                     <button onclick="createGroup()" class="btn-warning">Create Group</button>
                     <button onclick="createSubGroup()" class="btn-warning">Create Sub-Group</button>
                     <button onclick="createPhase()" class="btn-success">Create Phase</button>
                     <button onclick="analyzeTemporalConflicts()" class="btn-primary">Analyze Conflicts</button>
-                    <button onclick="resetZoom()" class="btn-primary">Reset View</button>
-                    <button onclick="exportEnhancedData()" class="btn-success">Export Enhanced CSV</button>
+                    <h3>Import/Export</h3>
+                    <button onclick="exportEnhancedData()" class="btn-primary">Export Enhanced CSV</button>
                     <button onclick="exportViewAsSVG()" class="btn-primary">Export View as SVG</button>
+                    <button onclick="triggerImport()" class="btn-primary">Import from CSV</button>
+                    <h3>Start Over</h3>
                     <button onclick="confirmClear()" class="btn-danger">Clear All</button>
                 </div>
             </div>
             
             <div class="visualization-panel">
                 <svg id="matrixSvg"></svg>
+            </div>
+        </div>
+    </div>
+    
+    <input type="file" id="csvFileInput" accept=".csv" style="display:none;">
+
+    <!-- CSV Import Modal -->
+    <div id="importModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h4>Map CSV Columns to Import</h4>
+            <p style="font-size:0.9em; margin-bottom:15px;">
+               Select which column from your CSV file corresponds to each data field.
+               <b>Context ID</b> is required for each row. Relationships require both a <b>Related Context ID</b> and a <b>Relationship Type</b>.
+            </p>
+    
+            <div class="form-group">
+                <label>Context ID (Required)</label>
+                <select id="mapContextId"></select>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <select id="mapDescription"></select>
+            </div>
+            
+            <hr style="margin: 20px 0;">
+            <h5 style="margin-bottom:15px;">For Relationships</h5>
+    
+            <div class="form-group">
+                <label>Relationship Type (e.g., 'above', 'below', 'equivalent')</label>
+                <select id="mapRelType"></select>
+            </div>
+            <div class="form-group">
+                <label>Related Context ID</label>
+                <select id="mapRelTo"></select>
+            </div>
+            
+            <hr style="margin: 20px 0;">
+            <div class="form-group">
+                <label><input type="checkbox" id="importClearData" checked> Clear all existing data before import</label>
+            </div>
+    
+            <div class="modal-buttons">
+                <button id="confirmImportBtn" class="confirm">Import Data</button>
+                <button onclick="hideModals()" class="cancel">Cancel</button>
             </div>
         </div>
     </div>
@@ -423,7 +470,13 @@
         }
 
         // --- Core Application Logic ---
-        window.onload = () => { loadFromStorage(); drawGrid(); updateUI(); svg.on('click', handleCanvasClick); };
+        window.onload = () => {
+            loadFromStorage();
+            drawGrid();
+            updateUI();
+            svg.on('click', handleCanvasClick);
+            document.getElementById('csvFileInput').onchange = handleFileSelect;
+        };
         
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
@@ -443,7 +496,7 @@
 
         function applySugiyamaLayout() {
             if (contexts.size === 0) { g.selectAll(".context-node-group, .relationship-path, .group-boundary, .subgroup-boundary, .phase-boundary").remove(); return; }
-            const { levels, stratigraphicEdges, contemporaryLinks, hasCycle, equivalenceInfo } = calculateInitialLevels();
+            const { levels, stratigraphicEdges, contemporaryLinks, hasCycle } = calculateInitialLevels();
 
             if (hasCycle) {
                 const cyclicNodeIds = Array.from(contexts.keys()).filter(id => !levels.has(id));
@@ -455,7 +508,7 @@
             const allNodes = new Map([...contexts, ...dummyNodes]);
             const orderedLevels = reduceCrossings(levels, allNodes, allEdges);
             nodePositions = assignCoordinates(orderedLevels, levels, dummyNodes);
-            drawMatrix(nodePositions, allEdges, contemporaryLinks, equivalenceInfo);
+            drawMatrix(nodePositions, allEdges, contemporaryLinks);
         }
 
         // --- Display and UI Panel Updates ---
@@ -495,7 +548,7 @@
                     html += `<div class="hierarchy-item ${hasConflicts ? 'temporal-conflict' : ''}" onclick="highlightContext('${context.id}')"><div class="item-header">${context.id} (${context.type})${hasConflicts ? '<span class="conflict-indicator"></span>' : ''}</div><div class="item-details">${context.description}</div>${context.hasDateRange() ? `<div class="item-contexts">${dateToString(context.earliestDate)} - ${dateToString(context.latestDate)} (${context.dateType})</div>` : ''}</div>`;
                 });
             }
-            listDiv.innerHTML = html || '<em>No data available.</em>';
+            listDiv.innerHTML = html || '<em>No data yet. Start by clicking on the canvas.</em>';
         }
 
         function updateConflictsDisplay() {
@@ -796,7 +849,7 @@
             gridGroup.selectAll("line.horizontal").data(d3.range(-gridSize, gridSize, GRID_CELL_SIZE)).enter().append("line").attr("class", "horizontal").attr("x1", -gridSize).attr("y1", d => d).attr("x2", gridSize).attr("y2", d => d).style("stroke", GRID_COLOR).style("stroke-width", 1);
         }
         
-        function drawMatrix(positions, allEdges, contemporaryLinks, equivalenceInfo) {
+        function drawMatrix(positions, allEdges, contemporaryLinks) {
             g.selectAll(".context-node-group, .relationship-path, .group-boundary, .subgroup-boundary, .phase-boundary, defs").remove();
             const defs = g.append("defs");
             defs.append("marker").attr("id", "arrowhead").attr("viewBox", "-2 -5 10 10").attr("refX", 5).attr("refY", 0).attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5").style("fill", "#495057");
@@ -970,6 +1023,106 @@
         }
         function confirmCreatePhase() {
             const name = document.getElementById("groupName").value.trim(); if (!name) { alert("Phase name is required."); return; } const id = `phase_${Date.now()}`; const phase = new HierarchicalGroup(id, name, 'phase'); phase.description = document.getElementById("groupDescription").value.trim(); phases.set(id, phase); hideModals(); updateUI();
+        }
+
+        // --- CSV Import Functions ---
+        function triggerImport() { document.getElementById('csvFileInput').click(); }
+        
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const csvContent = e.target.result;
+                try {
+                    const parsedData = d3.csvParse(csvContent);
+                    if (parsedData.length === 0) { throw new Error("CSV file is empty or invalid."); }
+                    const headers = parsedData.columns;
+                    showImportModal(parsedData, headers);
+                } catch (error) {
+                    alert(`Error parsing CSV file: ${error.message}`);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // Reset input to allow re-selection of the same file
+        }
+
+        function showImportModal(parsedData, headers) {
+            const modal = document.getElementById("importModal");
+            const selectIds = ["mapContextId", "mapDescription", "mapRelType", "mapRelTo"];
+            
+            const noMapOption = `<option value="">--- Do Not Map ---</option>`;
+            const headerOptions = headers.map(h => `<option value="${h}">${h}</option>`).join('');
+
+            selectIds.forEach(id => {
+                const select = document.getElementById(id);
+                select.innerHTML = noMapOption + headerOptions;
+            });
+            
+            // Smart mapping
+            const smartMap = {
+                mapContextId: ['id', 'context', 'context_id', 'unit'],
+                mapDescription: ['desc', 'description', 'notes'],
+                mapRelType: ['rel_type', 'relationship', 'rel type', 'type'],
+                mapRelTo: ['rel_to', 'related_to', 'related context', 'is_below', 'is_above']
+            };
+            for (const [selectId, possibleHeaders] of Object.entries(smartMap)) {
+                const foundHeader = headers.find(h => possibleHeaders.includes(h.toLowerCase().replace(/ /g, '_')));
+                if (foundHeader) { document.getElementById(selectId).value = foundHeader; }
+            }
+            
+            document.getElementById("confirmImportBtn").onclick = () => confirmImport(parsedData);
+            modal.style.display = "flex";
+        }
+        
+        function confirmImport(parsedData) {
+            const mapping = {
+                contextId: document.getElementById('mapContextId').value,
+                description: document.getElementById('mapDescription').value,
+                relType: document.getElementById('mapRelType').value,
+                relTo: document.getElementById('mapRelTo').value,
+            };
+            
+            if (!mapping.contextId) { alert("'Context ID' must be mapped to a column."); return; }
+            
+            if (document.getElementById('importClearData').checked) {
+                contexts = new Map(); relationships = []; groups = new Map();
+                subGroups = new Map(); phases = new Map(); temporalConflicts = [];
+            }
+
+            let importedContexts = 0;
+            let importedRels = 0;
+
+            parsedData.forEach(row => {
+                const id = row[mapping.contextId]?.trim();
+                if (!id) return;
+
+                if (!contexts.has(id)) {
+                    contexts.set(id, new ArchaeologicalContext(id));
+                    importedContexts++;
+                }
+                const context = contexts.get(id);
+
+                if (mapping.description && row[mapping.description]) {
+                    context.description = row[mapping.description].trim();
+                }
+                
+                const relType = row[mapping.relType]?.trim();
+                const relTo = row[mapping.relTo]?.trim();
+                
+                if (relType && relTo) {
+                    if (!contexts.has(relTo)) {
+                        contexts.set(relTo, new ArchaeologicalContext(relTo));
+                        importedContexts++;
+                    }
+                    relationships.push({ from: id, to: relTo, type: relType.toLowerCase().replace(/ /g, '_') });
+                    importedRels++;
+                }
+            });
+
+            hideModals();
+            updateUI();
+            alert(`Import complete. Added ${importedContexts} new contexts and ${importedRels} relationships.`);
         }
 
         // --- Utility Functions ---
