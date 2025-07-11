@@ -1133,7 +1133,13 @@
         function hideModals() { document.querySelectorAll('.modal-backdrop').forEach(m => m.style.display = 'none'); }
         function removeRelationship(index) { relationships.splice(index, 1); updateUI(); }
         function resetZoom() { svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity); }
-        function confirmClear() { if (window.confirm("Delete all data? This cannot be undone.")) { localStorage.removeItem('harrisMatrixData'); location.reload(); } }
+        function confirmClear() { if (window.confirm("Delete all data? This cannot be undone.")) { localStorage.removeItem('harrisMatrixData'); contexts = new Map();
+        relationships = [];
+        groups = new Map();
+        subGroups = new Map();
+        phases = new Map();
+        nodePositions = {};
+        temporalConflicts = [];updateUI(); } }
         function deleteContext(contextId) { if (window.confirm(`Are you sure you want to delete context "${contextId}" and all its relationships?`)) { const context = contexts.get(contextId); if (context.groupId) groups.get(context.groupId)?.contexts.delete(contextId); if (context.subGroupId) subGroups.get(context.subGroupId)?.contexts.delete(contextId); contexts.delete(contextId); relationships = relationships.filter(rel => rel.from !== contextId && rel.to !== contextId); temporalConflicts = temporalConflicts.filter(c => c.context1 !== contextId && c.context2 !== contextId); hideModals(); updateUI(); } }
         function highlightBy(filterFn, color) { g.selectAll('.context-node-group').each(function() { const node = d3.select(this); const rect = node.select('rect'); const isSelected = filterFn(contexts.get(node.datum())); rect.transition().duration(300).attr('stroke-width', isSelected ? '4px' : '2px').attr('stroke', isSelected ? color : (rect.classed('temporal-conflict') ? '#c82333' : (rect.classed('phased') ? '#1e7e34' : (rect.classed('grouped') ? '#e0a800' : 'var(--primary-accent-hover)')))); }); }
         function highlightPhase(id) { highlightBy(c => c.phaseId === id, '#4caf50'); }
