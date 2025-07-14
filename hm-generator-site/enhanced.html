@@ -706,8 +706,8 @@
 
             relationships.forEach((rel, index) => {
                 let from, to;
-                if (['above', 'seals', 'cuts', 'filled_by'].includes(rel.type)) { [from, to] = [rel.to, rel.from]; } 
-                else if (['below', 'sealed_by', 'cut_by', 'fill_of'].includes(rel.type)) { [from, to] = [rel.from, rel.to]; } 
+                if (['above', 'seals', 'cuts', 'fill_of'].includes(rel.type)) { [from, to] = [rel.to, rel.from]; } 
+                else if (['below', 'sealed_by', 'cut_by', 'filled_by'].includes(rel.type)) { [from, to] = [rel.from, rel.to]; } 
                 else if (['contemporary_with', 'equivalent', 'same_as'].includes(rel.type)) { contemporaryLinks.push({ from: rel.from, to: rel.to }); }
                 if (from && to && contexts.has(from) && contexts.has(to)) {
                     const repFrom = contextToGroupRep.get(from) || from;
