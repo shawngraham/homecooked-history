@@ -47,6 +47,34 @@ This is a **toy** that I intend to use with students to introduce ideas of perso
 4. Use `[[Note Title]]` to link to other notes
 5. Right-click on notes in the sidebar for additional options
 
+### Block Embeds
+
+If you want to embed blocks from one note in another, you have to give the block an id. To test this, create a note:
+
+```
+# Source Note
+
+This is a paragraph with a block reference. ^my-block
+
+Another paragraph here. ^another-block
+```
+then reference those blocks in another note:
+
+```
+# Target Note
+
+Here's an embedded block:
+![[Source Note#^my-block]]
+
+And another:
+![[Source Note#^another-block]]
+```
+
+When you preview the target note, the other blocks will embed. **Careful** this is fragile:
++ Case sensitivity: ```![[source note#^my-block]]``` won't match ```Source Note```
++ Exact title matching: Note titles must match exactly
++ Only works in preview: Embeds don't show in edit mode
+
 ## File Structure
 
 ```
