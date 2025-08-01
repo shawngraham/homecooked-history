@@ -289,6 +289,10 @@ class PKMApp {
         // Title changed - need to update both sidebar and all panes
         this.renderNoteList();
         this.renderAllPanes(); // This recreates all pane elements
+            // Force sidebar update after a brief delay
+    setTimeout(() => {
+        this.updateActiveNoteInSidebar();
+    }, 10);
         // Don't try to use paneEl after this point - it's been recreated
     } else {
         // Title unchanged - just update the current pane's title
@@ -372,27 +376,38 @@ class PKMApp {
     // --- Context Menu & Note List Sidebar ---
 
     renderNoteList() {
-        const noteList = document.getElementById('noteList');
-        const sortedNotes = Object.values(this.notes).sort((a, b) => b.modified - a.modified);
-        noteList.innerHTML = sortedNotes.map(note => `
-            <div class="note-item" data-note-id="${note.id}">
-                <div class="note-title">${note.title}</div>
-                <div class="note-preview">${note.getPreview()}</div>
-            </div>`).join('');
-
-        noteList.querySelectorAll('.note-item').forEach(item => {
-            item.addEventListener('click', () => this.openNote(item.dataset.noteId));
-            item.addEventListener('contextmenu', (e) => { e.preventDefault(); this.showContextMenu(e, item.dataset.noteId); });
-        });
-        
-        this.updateActiveNoteInSidebar();
-    }
+    const noteList = document.getElementById('noteList');
+    const sortedNotes = Object.values(this.notes).sort((a, b) => b.modified - a.modified);
     
-    /**
-     * [REVISED] Robustly updates the sidebar highlight.
-     * This explicitly clears all highlights before setting the new one.
-     */
-    updateActiveNoteInSidebar() {
+    // Update the innerHTML
+    noteList.innerHTML = sortedNotes.map(note => `
+        <div class="note-item" data-note-id="${note.id}">
+            <div class="note-title">${note.title}</div>
+            <div class="note-preview">${note.getPreview()}</div>
+        </div>`).join('');
+
+    // Force a reflow to ensure DOM is updated immediately
+    noteList.offsetHeight; // This forces the browser to recalculate layout
+
+    // Re-bind events to the new elements
+    noteList.querySelectorAll('.note-item').forEach(item => {
+        item.addEventListener('click', () => this.openNote(item.dataset.noteId));
+        item.addEventListener('contextmenu', (e) => { 
+            e.preventDefault(); 
+            this.showContextMenu(e, item.dataset.noteId); 
+        });
+    });
+    
+    // Use requestAnimationFrame to ensure DOM is fully rendered before updating active state
+    requestAnimationFrame(() => {
+        this.updateActiveNoteInSidebar();
+    });
+}
+
+// 
+updateActiveNoteInSidebar() {
+    // Force a small delay to ensure DOM is ready
+    requestAnimationFrame(() => {
         // First, remove 'active' class from any currently highlighted item.
         document.querySelectorAll('.note-item.active').forEach(activeItem => {
             activeItem.classList.remove('active');
@@ -404,9 +419,13 @@ class PKMApp {
             const newActiveItem = document.querySelector(`.note-item[data-note-id="${focusedPane.noteId}"]`);
             if (newActiveItem) {
                 newActiveItem.classList.add('active');
+                
+                // Force another reflow to ensure the visual update happens
+                newActiveItem.offsetHeight;
             }
         }
-    }
+    });
+}
 
 
     showContextMenu(event, noteId) {
