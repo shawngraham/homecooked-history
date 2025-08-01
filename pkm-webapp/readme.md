@@ -142,7 +142,9 @@ All data is stored locally in your browser using localStorage. This means:
 - No cloud synchronization
 - Limited to browser storage capacity
 - No mobile-optimized interface
-- No plugin system
+
+## NB Note Names
+Change the name by changing the `title:` yaml field. Refresh the display to update the sidebar (ctrl+r). This is still a bit glitchy.
 
 ## Development
 
