@@ -275,28 +275,43 @@ class PKMApp {
     }
     
     saveNoteFromPane(paneId) {
-        const pane = this.getPane(paneId);
-        if (!pane) return;
-        const paneEl = document.querySelector(`.editor-container[data-pane-id="${paneId}"]`);
-        if (!paneEl) return;
-        const note = this.notes[pane.noteId];
-        const content = paneEl.querySelector('.editor-textarea').value;
-        const oldTitle = note.title;
+    const pane = this.getPane(paneId);
+    if (!pane) return;
+    const paneEl = document.querySelector(`.editor-container[data-pane-id="${paneId}"]`);
+    if (!paneEl) return;
+    const note = this.notes[pane.noteId];
+    const content = paneEl.querySelector('.editor-textarea').value;
+    const oldTitle = note.title;
 
-        note.update(content, true);
+    note.update(content, true);
 
-        if (oldTitle !== note.title) {
-            this.renderNoteList();
-            this.renderAllPanes();
-        } else {
-             paneEl.querySelector('.editor-title').textContent = note.title;
-        }
-        
-        this.saveNotes();
-        this.backlinksManager.updateNotes(this.notes);
-        this.updateRightSidebar();
+    if (oldTitle !== note.title) {
+        // Title changed - need to update both sidebar and all panes
+        this.renderNoteList();
+        this.renderAllPanes(); // This recreates all pane elements
+        // Don't try to use paneEl after this point - it's been recreated
+    } else {
+        // Title unchanged - just update the current pane's title
+        paneEl.querySelector('.editor-title').textContent = note.title;
+        // Update the save status for this specific pane
         paneEl.querySelector('.save-status').textContent = `Saved`;
     }
+    
+    this.saveNotes();
+    this.backlinksManager.updateNotes(this.notes);
+    this.updateRightSidebar();
+    
+    // Only update save status if we didn't re-render all panes
+    if (oldTitle === note.title) {
+        // Save status was already updated above
+    } else {
+        // After renderAllPanes(), we need to find the new pane element
+        const newPaneEl = document.querySelector(`.editor-container[data-pane-id="${paneId}"]`);
+        if (newPaneEl) {
+            newPaneEl.querySelector('.save-status').textContent = `Saved`;
+        }
+    }
+}
 
     updatePaneContent(paneEl, note) {
         this.updatePanePreview(paneEl, note);
