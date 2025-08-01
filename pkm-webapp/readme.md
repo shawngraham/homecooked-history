@@ -109,6 +109,7 @@ Code blocks are supported:
 ```javascript
 console.log("Hello world");
 ```
+
 ```
 
 ## Keyboard Shortcuts
