@@ -105,10 +105,10 @@ This is the content of my note.
 
 I can link to [[Another Note]] like this.
 
-Code blocks are supported:
-```javascript
+Code blocks are supported (with three backticks):
+`javascript
 console.log("Hello world");
-```
+`
 
 ```
 
