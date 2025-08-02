@@ -434,6 +434,38 @@ body {
     -webkit-box-orient: vertical;
 }
 
+/* Graph Visualization */
+.graph-container {
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--background);
+    margin-bottom: 8px;
+}
+
+.graph-container svg {
+    width: 100%;
+    height: auto;
+}
+
+.graph-container svg text {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Graph nodes and links will use CSS custom properties for theming */
+.graph-node {
+    cursor: pointer;
+}
+
+.graph-node.current {
+    cursor: default;
+}
+
+.graph-link {
+    stroke: var(--border);
+    stroke-opacity: 0.6;
+}
+
 /* Autocomplete */
 .autocomplete {
     position: fixed;

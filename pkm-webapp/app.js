@@ -8,6 +8,12 @@ class PKMApp {
         this.focusedPaneId = storage.get('pkm_focused_pane', null);
 
         this.backlinksManager = new BacklinksManager(this.notes);
+        this.graphManager = new GraphManager(this.notes);
+        
+        // Set up graph click handler
+        this.graphManager.onNodeClick = (noteId) => {
+            this.openNote(noteId);
+        };
 
         this.init();
     }
@@ -154,6 +160,7 @@ class PKMApp {
         const note = new Note();
         this.notes[note.id] = note;
         this.backlinksManager.updateNotes(this.notes);
+        this.graphManager.updateNotes(this.notes);
         this.saveNotes();
         this.renderNoteList();
         this.openNoteInNewPane(note.id);
@@ -169,6 +176,7 @@ class PKMApp {
 
         delete this.notes[noteId];
         this.backlinksManager.updateNotes(this.notes);
+        this.graphManager.updateNotes(this.notes);
 
         this.saveNotes();
         this.savePanes();
@@ -303,6 +311,7 @@ class PKMApp {
     
     this.saveNotes();
     this.backlinksManager.updateNotes(this.notes);
+    this.graphManager.updateNotes(this.notes);
     this.updateRightSidebar();
     
     // Only update save status if we didn't re-render all panes
@@ -338,6 +347,10 @@ class PKMApp {
         const content = note.getContentWithoutMetadata();
         const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
 
+        // Graph Visualization
+        const graphContainer = document.createElement('div');
+        graphContainer.className = 'graph-container';
+        
         // Backlinks
         const backlinks = this.backlinksManager.getBacklinks(note.title);
         let backlinksHTML = `<div class="backlinks-list">
@@ -358,10 +371,18 @@ class PKMApp {
                 <div class="word-count-display">${wordCount} words</div>
             </div>
             <div class="sidebar-section">
+                <div class="sidebar-section-header">Link Graph</div>
+                <div class="graph-container" id="graphContainer"></div>
+            </div>
+            <div class="sidebar-section">
                 <div class="sidebar-section-header">Backlinks</div>
                 ${backlinksHTML}
             </div>
         `;
+
+        // Create the graph visualization
+        const graphContainerEl = container.querySelector('#graphContainer');
+        this.graphManager.createGraph(graphContainerEl, note.id);
 
         // Re-bind events for the new backlinks
         container.querySelectorAll('.backlink-item').forEach(item => {
@@ -517,6 +538,7 @@ updateActiveNoteInSidebar() {
         if (match.type === 'create') {
             const newNote = new Note(match.title);
             this.notes[newNote.id] = newNote;
+            this.graphManager.updateNotes(this.notes);
             this.saveNotes();
             this.renderNoteList();
         }
@@ -575,6 +597,7 @@ handleFileImport(event) {
     // Update UI after all files are processed
     setTimeout(() => {
         this.backlinksManager.updateNotes(this.notes);
+        this.graphManager.updateNotes(this.notes);
         this.saveNotes();
         this.renderNoteList();
         this.updateRightSidebar();
