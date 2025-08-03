@@ -331,7 +331,7 @@ class PKMApp {
     }
     
     // --- Right Sidebar ---
-    updateRightSidebar() {
+        updateRightSidebar() {
         const rightSidebar = document.getElementById('rightSidebar');
         const container = rightSidebar.querySelector('.right-sidebar-content');
         const focusedPane = this.getPane(this.focusedPaneId);
@@ -379,11 +379,11 @@ class PKMApp {
             </div>
         `;
 
-        // Create the graph visualization
+        // Create the graph visualization with default 1 step
         const graphContainerEl = container.querySelector('#graphContainer');
-        this.graphManager.createGraph(graphContainerEl, note.id);
+        this.graphManager.createGraph(graphContainerEl, note.id, 1);
 
-        // Bind export button event
+        // Bind export button event - update to include current steps
         const exportBtn = container.querySelector('#exportGraphBtn');
         if (exportBtn) {
             exportBtn.addEventListener('click', (e) => {
@@ -403,7 +403,7 @@ class PKMApp {
 
     // --- Network Data Export Method ---
     // --- Network Data Export Method ---
-    exportNetworkData(noteId) {
+        exportNetworkData(noteId) {
         // Show export options
         const exportMenu = document.createElement('div');
         exportMenu.className = 'context-menu';
@@ -417,8 +417,8 @@ class PKMApp {
             <div style="padding: 8px 0; font-weight: 600; border-bottom: 1px solid var(--border); margin-bottom: 8px;">Network Export Options</div>
             <button class="context-menu-item" data-action="export-complete">🌐 Complete Network</button>
             <div style="font-size: 11px; color: var(--text-muted); padding: 4px 12px;">All notes and connections</div>
-            <button class="context-menu-item" data-action="export-ego">🎯 Ego Network</button>
-            <div style="font-size: 11px; color: var(--text-muted); padding: 4px 12px;">Just this note's connections</div>
+            <button class="context-menu-item" data-action="export-ego">🎯 Current View Network</button>
+            <div style="font-size: 11px; color: var(--text-muted); padding: 4px 12px;">Just the currently visible connections</div>
             <div class="context-menu-separator"></div>
             <button class="context-menu-item" data-action="cancel">❌ Cancel</button>
         `;
@@ -432,7 +432,7 @@ class PKMApp {
         });
         
         exportMenu.querySelector('[data-action="export-ego"]').addEventListener('click', () => {
-            this.performNetworkExport(noteId, false); // Ego network
+            this.performNetworkExport(noteId, false); // Ego network with current steps
             exportMenu.remove();
         });
         
@@ -451,16 +451,15 @@ class PKMApp {
         }, 100);
     }
 
-    // Perform the actual network export
-// Perform the actual network export
-    performNetworkExport(noteId, completeNetwork = true) {
-        const networkData = this.graphManager.exportNetworkCSV(noteId, true, completeNetwork, true);
+     performNetworkExport(noteId, completeNetwork = true) {
+        const currentSteps = completeNetwork ? null : this.graphManager.currentSteps;
+        const networkData = this.graphManager.exportNetworkCSV(noteId, true, completeNetwork, true, currentSteps);
         if (!networkData) return;
 
         const note = this.notes[noteId];
         const timestamp = new Date().toISOString().split('T')[0];
         const safeTitle = note.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        const networkType = completeNetwork ? 'complete' : 'ego';
+        const networkType = completeNetwork ? 'complete' : `ego_${currentSteps}step${currentSteps > 1 ? 's' : ''}`;
 
         // Count files to download
         let fileCount = 3; // edges, nodes, stats
@@ -500,10 +499,10 @@ class PKMApp {
 
         // Show user feedback
         const totalNotes = Object.keys(this.notes).length;
-        const networkSize = completeNetwork ? totalNotes : 'limited to connections';
+        const networkSize = completeNetwork ? totalNotes : `${currentSteps}-step network`;
         
         setTimeout(() => {
-            let message = `${completeNetwork ? 'Complete' : 'Ego'} network data exported!\n\nNetwork size: ${networkSize} notes\nDownloaded ${fileCount} files:\n• Edges (connections)\n• Nodes (connected notes)\n• Statistics (metrics with centrality & communities)`;
+            let message = `${completeNetwork ? 'Complete' : `${currentSteps}-step ego`} network data exported!\n\nNetwork size: ${networkSize}\nDownloaded ${fileCount} files:\n• Edges (connections)\n• Nodes (connected notes)\n• Statistics (metrics with centrality & communities)`;
             
             if (networkData.isolatedCSV && completeNetwork) {
                 message += '\n• Isolated Notes (orphan notes with no wikilinks)';

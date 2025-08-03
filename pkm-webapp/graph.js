@@ -1,37 +1,70 @@
-// Graph visualization manager
+// Enhanced Graph visualization manager with multi-step support
 class GraphManager {
     constructor(notes) {
         this.notes = notes;
         this.svg = null;
         this.simulation = null;
         this.currentNoteId = null;
+        this.currentSteps = 1; // Default to 1 step
     }
 
     updateNotes(notes) {
         this.notes = notes;
     }
 
-    createGraph(container, noteId) {
+    createGraph(container, noteId, steps = 1) {
         this.currentNoteId = noteId;
+        this.currentSteps = steps;
         const note = this.notes[noteId];
         if (!note) return;
 
         // Clear previous graph
         container.innerHTML = '';
 
+        // Create controls for step selection
+        const controlsDiv = document.createElement('div');
+        controlsDiv.className = 'graph-controls';
+        controlsDiv.style.cssText = 'margin-bottom: 8px; display: flex; justify-content: center; gap: 4px;';
+        
+        for (let i = 1; i <= 3; i++) {
+            const btn = document.createElement('button');
+            btn.textContent = `${i} step${i > 1 ? 's' : ''}`;
+            btn.className = 'step-btn';
+            btn.style.cssText = `
+                padding: 4px 8px; 
+                font-size: 11px; 
+                border: 1px solid var(--border); 
+                border-radius: 4px; 
+                background: ${i === steps ? 'var(--primary)' : 'var(--surface)'}; 
+                color: ${i === steps ? 'white' : 'var(--text)'}; 
+                cursor: pointer;
+                transition: all 0.2s;
+            `;
+            btn.addEventListener('click', () => {
+                this.createGraph(container, noteId, i);
+            });
+            controlsDiv.appendChild(btn);
+        }
+        container.appendChild(controlsDiv);
+
+        // Create SVG container
+        const svgContainer = document.createElement('div');
+        svgContainer.className = 'graph-svg-container';
+        container.appendChild(svgContainer);
+
         // Create SVG
         const width = container.clientWidth || 260;
         const height = 200;
         
-        this.svg = d3.select(container)
+        this.svg = d3.select(svgContainer)
             .append('svg')
             .attr('width', width)
             .attr('height', height)
             .style('background', 'var(--background)')
             .style('border-radius', '6px');
 
-        // Prepare graph data
-        const { nodes, links } = this.prepareGraphData(note);
+        // Prepare graph data with specified number of steps
+        const { nodes, links } = this.prepareMultiStepGraphData(note, steps);
         
         if (nodes.length === 0) {
             // Show "no connections" message
@@ -45,23 +78,26 @@ class GraphManager {
             return;
         }
 
-        // Create force simulation
+        // Create force simulation with adjusted parameters for different step counts
+        const linkDistance = steps === 1 ? 60 : steps === 2 ? 50 : 40;
+        const chargeStrength = steps === 1 ? -200 : steps === 2 ? -150 : -100;
+        
         this.simulation = d3.forceSimulation(nodes)
-            .force('link', d3.forceLink(links).id(d => d.id).distance(60))
-            .force('charge', d3.forceManyBody().strength(-200))
+            .force('link', d3.forceLink(links).id(d => d.id).distance(linkDistance))
+            .force('charge', d3.forceManyBody().strength(chargeStrength))
             .force('center', d3.forceCenter(width / 2, height / 2))
-            .force('collision', d3.forceCollide().radius(20));
+            .force('collision', d3.forceCollide().radius(d => d.isCurrent ? 25 : d.step === 1 ? 20 : 15));
 
-        // Create links
+        // Create links with different styles based on step
         const link = this.svg.append('g')
             .selectAll('line')
             .data(links)
             .enter().append('line')
-            .attr('stroke', 'var(--border)')
-            .attr('stroke-width', 2)
-            .attr('opacity', 0.6);
+            .attr('stroke', d => d.step === 1 ? 'var(--primary)' : d.step === 2 ? 'var(--text-muted)' : 'var(--border)')
+            .attr('stroke-width', d => d.step === 1 ? 2 : 1)
+            .attr('opacity', d => d.step === 1 ? 0.8 : d.step === 2 ? 0.6 : 0.4);
 
-        // Create nodes
+        // Create nodes with different sizes and colors based on step
         const node = this.svg.append('g')
             .selectAll('g')
             .data(nodes)
@@ -71,29 +107,47 @@ class GraphManager {
                 .on('drag', (event, d) => this.dragged(event, d))
                 .on('end', (event, d) => this.dragended(event, d)));
 
-        // Add circles to nodes
+        // Add circles to nodes with step-based styling
         node.append('circle')
-            .attr('r', d => d.isCurrent ? 12 : 8)
-            .attr('fill', d => d.isCurrent ? 'var(--primary)' : 'var(--surface)')
+            .attr('r', d => d.isCurrent ? 12 : d.step === 1 ? 10 : d.step === 2 ? 8 : 6)
+            .attr('fill', d => {
+                if (d.isCurrent) return 'var(--primary)';
+                if (d.step === 1) return 'var(--success)';
+                if (d.step === 2) return 'var(--warning)';
+                return 'var(--text-muted)';
+            })
             .attr('stroke', d => d.isCurrent ? 'var(--primary)' : 'var(--border)')
             .attr('stroke-width', d => d.isCurrent ? 3 : 2)
+            .attr('opacity', d => d.step === 3 ? 0.7 : 1)
             .style('cursor', d => d.isCurrent ? 'default' : 'pointer');
 
-        // Add labels to nodes
+        // Add labels to nodes with step-based styling
         node.append('text')
-            .text(d => this.truncateText(d.title, 12))
-            .attr('font-size', '10px')
+            .text(d => this.truncateText(d.title, d.step === 1 ? 15 : d.step === 2 ? 12 : 10))
+            .attr('font-size', d => d.isCurrent ? '11px' : d.step === 1 ? '10px' : '9px')
             .attr('text-anchor', 'middle')
-            .attr('dy', -15)
-            .attr('fill', 'var(--text)')
+            .attr('dy', d => d.isCurrent ? -18 : d.step === 1 ? -16 : d.step === 2 ? -14 : -12)
+            .attr('fill', d => d.step === 3 ? 'var(--text-muted)' : 'var(--text)')
+            .attr('font-weight', d => d.isCurrent ? 'bold' : d.step === 1 ? '500' : 'normal')
             .style('pointer-events', 'none')
             .style('user-select', 'none');
+
+        // Add step indicators for nodes beyond step 1
+        node.filter(d => !d.isCurrent && d.step > 1)
+            .append('text')
+            .text(d => d.step)
+            .attr('font-size', '8px')
+            .attr('text-anchor', 'middle')
+            .attr('dy', 3)
+            .attr('fill', 'white')
+            .style('pointer-events', 'none')
+            .style('user-select', 'none')
+            .style('font-weight', 'bold');
 
         // Add click handler for non-current nodes
         node.filter(d => !d.isCurrent)
             .on('click', (event, d) => {
                 event.stopPropagation();
-                // Trigger note opening - we'll need to pass this callback from the app
                 if (this.onNodeClick) {
                     this.onNodeClick(d.id);
                 }
@@ -110,75 +164,138 @@ class GraphManager {
             node
                 .attr('transform', d => `translate(${d.x},${d.y})`);
         });
+
+        // Add legend if showing multiple steps
+        if (steps > 1) {
+            this.addStepLegend(width, height);
+        }
     }
 
-    prepareGraphData(currentNote) {
+    addStepLegend(width, height) {
+        const legend = this.svg.append('g')
+            .attr('class', 'step-legend')
+            .attr('transform', `translate(10, ${height - 40})`);
+
+        const legendData = [
+            { step: 0, label: 'Current', color: 'var(--primary)' },
+            { step: 1, label: '1 step', color: 'var(--success)' },
+            { step: 2, label: '2 steps', color: 'var(--warning)' },
+            { step: 3, label: '3 steps', color: 'var(--text-muted)' }
+        ].filter(d => d.step === 0 || d.step <= this.currentSteps);
+
+        const legendItems = legend.selectAll('.legend-item')
+            .data(legendData)
+            .enter().append('g')
+            .attr('class', 'legend-item')
+            .attr('transform', (d, i) => `translate(0, ${i * 12})`);
+
+        legendItems.append('circle')
+            .attr('r', 4)
+            .attr('fill', d => d.color)
+            .attr('cx', 5);
+
+        legendItems.append('text')
+            .text(d => d.label)
+            .attr('x', 12)
+            .attr('y', 0)
+            .attr('dy', '0.35em')
+            .attr('font-size', '9px')
+            .attr('fill', 'var(--text-muted)');
+    }
+
+    prepareMultiStepGraphData(currentNote, maxSteps = 1) {
         const nodes = [];
         const links = [];
+        const nodesByStep = new Map(); // Map from step number to Set of note IDs
         const processedNotes = new Set();
 
-        // Add current note as central node
+        // Initialize with current note
         nodes.push({
             id: currentNote.id,
             title: currentNote.title,
-            isCurrent: true
+            isCurrent: true,
+            step: 0
         });
         processedNotes.add(currentNote.id);
+        nodesByStep.set(0, new Set([currentNote.id]));
 
-        // Get outgoing links from current note
-        const outgoingLinks = currentNote.getOutgoingLinks();
-        outgoingLinks.forEach(linkTitle => {
-            const targetNote = Object.values(this.notes).find(n => 
-                n.title.toLowerCase() === linkTitle.toLowerCase()
-            );
-            
-            if (targetNote && !processedNotes.has(targetNote.id)) {
-                nodes.push({
-                    id: targetNote.id,
-                    title: targetNote.title,
-                    isCurrent: false
-                });
-                processedNotes.add(targetNote.id);
-                
-                links.push({
-                    source: currentNote.id,
-                    target: targetNote.id,
-                    type: 'outgoing'
-                });
-            }
-        });
+        // Process each step
+        for (let step = 1; step <= maxSteps; step++) {
+            const currentStepNodes = new Set();
+            const previousStepNodes = nodesByStep.get(step - 1) || new Set();
 
-        // Get incoming links (backlinks) to current note
-        Object.values(this.notes).forEach(note => {
-            if (note.id !== currentNote.id) {
-                const noteLinks = note.getOutgoingLinks();
-                if (noteLinks.some(link => link.toLowerCase() === currentNote.title.toLowerCase())) {
-                    if (!processedNotes.has(note.id)) {
+            // For each node in the previous step, find its connections
+            previousStepNodes.forEach(noteId => {
+                const note = this.notes[noteId];
+                if (!note) return;
+
+                // Get outgoing links
+                const outgoingLinks = note.getOutgoingLinks();
+                outgoingLinks.forEach(linkTitle => {
+                    const targetNote = Object.values(this.notes).find(n => 
+                        n.title.toLowerCase() === linkTitle.toLowerCase()
+                    );
+                    
+                    if (targetNote && !processedNotes.has(targetNote.id)) {
                         nodes.push({
-                            id: note.id,
-                            title: note.title,
-                            isCurrent: false
+                            id: targetNote.id,
+                            title: targetNote.title,
+                            isCurrent: false,
+                            step: step
                         });
-                        processedNotes.add(note.id);
+                        processedNotes.add(targetNote.id);
+                        currentStepNodes.add(targetNote.id);
                     }
                     
-                    links.push({
-                        source: note.id,
-                        target: currentNote.id,
-                        type: 'incoming'
-                    });
-                }
-            }
-        });
+                    // Add link if target exists
+                    if (targetNote) {
+                        links.push({
+                            source: noteId,
+                            target: targetNote.id,
+                            type: 'outgoing',
+                            step: step
+                        });
+                    }
+                });
+
+                // Get incoming links (backlinks)
+                Object.values(this.notes).forEach(otherNote => {
+                    if (otherNote.id !== noteId) {
+                        const noteLinks = otherNote.getOutgoingLinks();
+                        if (noteLinks.some(link => link.toLowerCase() === note.title.toLowerCase())) {
+                            if (!processedNotes.has(otherNote.id)) {
+                                nodes.push({
+                                    id: otherNote.id,
+                                    title: otherNote.title,
+                                    isCurrent: false,
+                                    step: step
+                                });
+                                processedNotes.add(otherNote.id);
+                                currentStepNodes.add(otherNote.id);
+                            }
+                            
+                            // Add link
+                            links.push({
+                                source: otherNote.id,
+                                target: noteId,
+                                type: 'incoming',
+                                step: step
+                            });
+                        }
+                    }
+                });
+            });
+
+            nodesByStep.set(step, currentStepNodes);
+        }
 
         return { nodes, links };
     }
 
-// Generate complete network data for all notes and their connections
+    // Enhanced complete network data preparation with step information
     prepareCompleteNetworkData() {
         const nodes = [];
         const links = [];
-        const processedNotes = new Set();
         
         // Add all notes as nodes
         Object.values(this.notes).forEach(note => {
@@ -187,9 +304,9 @@ class GraphManager {
                 title: note.title,
                 isCurrent: note.id === this.currentNoteId,
                 created: note.created,
-                modified: note.modified
+                modified: note.modified,
+                step: note.id === this.currentNoteId ? 0 : this.calculateStepsFromCurrent(note.id)
             });
-            processedNotes.add(note.id);
         });
         
         // Add all wikilink connections
@@ -213,7 +330,8 @@ class GraphManager {
                             source: sourceNote.id,
                             target: targetNote.id,
                             type: 'wikilink',
-                            bidirectional: false
+                            bidirectional: false,
+                            step: 1 // All direct connections are step 1
                         });
                     }
                 }
@@ -223,20 +341,104 @@ class GraphManager {
         return { nodes, links };
     }
 
-    // Enhanced CSV export with complete network option
-    exportNetworkCSV(noteId, includeMetadata = true, completeNetwork = false) {
+    // Calculate the minimum number of steps from current note to target note
+    calculateStepsFromCurrent(targetNoteId) {
+        if (!this.currentNoteId || targetNoteId === this.currentNoteId) return 0;
+        
+        const visited = new Set();
+        const queue = [{ noteId: this.currentNoteId, steps: 0 }];
+        visited.add(this.currentNoteId);
+        
+        while (queue.length > 0) {
+            const { noteId, steps } = queue.shift();
+            const note = this.notes[noteId];
+            
+            if (!note) continue;
+            
+            // Check direct connections
+            const outgoingLinks = note.getOutgoingLinks();
+            const allConnections = new Set();
+            
+            // Add outgoing connections
+            outgoingLinks.forEach(linkTitle => {
+                const targetNote = Object.values(this.notes).find(n => 
+                    n.title.toLowerCase() === linkTitle.toLowerCase()
+                );
+                if (targetNote) {
+                    allConnections.add(targetNote.id);
+                }
+            });
+            
+            // Add incoming connections (backlinks)
+            Object.values(this.notes).forEach(otherNote => {
+                if (otherNote.id !== noteId) {
+                    const noteLinks = otherNote.getOutgoingLinks();
+                    if (noteLinks.some(link => link.toLowerCase() === note.title.toLowerCase())) {
+                        allConnections.add(otherNote.id);
+                    }
+                }
+            });
+            
+            // Process connections
+            for (const connectedNoteId of allConnections) {
+                if (connectedNoteId === targetNoteId) {
+                    return steps + 1;
+                }
+                
+                if (!visited.has(connectedNoteId) && steps < 3) { // Limit search depth
+                    visited.add(connectedNoteId);
+                    queue.push({ noteId: connectedNoteId, steps: steps + 1 });
+                }
+            }
+        }
+        
+        return Infinity; // Not reachable within 3 steps
+    }
+
+    // Keep the original prepareGraphData for backward compatibility
+    prepareGraphData(currentNote) {
+        return this.prepareMultiStepGraphData(currentNote, 1);
+    }
+
+    // Enhanced CSV export with step information
+    exportNetworkCSV(noteId, includeMetadata = true, completeNetwork = false, includeIsolated = true, steps = null) {
         const note = this.notes[noteId];
         if (!note) return null;
+
+        // Use current steps if not specified
+        const exportSteps = steps !== null ? steps : (completeNetwork ? null : this.currentSteps);
 
         // Choose between ego network or complete network
         const { nodes, links } = completeNetwork 
             ? this.prepareCompleteNetworkData() 
-            : this.prepareGraphData(note);
+            : this.prepareMultiStepGraphData(note, exportSteps || 1);
         
-        // Enhanced edges CSV with comprehensive metadata
+        // Generate standard network CSVs
+        const networkData = this.generateStandardNetworkCSVs(nodes, links, noteId, includeMetadata, exportSteps);
+        
+        // Generate isolated notes CSV if requested
+        let isolatedCSV = null;
+        if (includeIsolated && completeNetwork) {
+            isolatedCSV = this.generateIsolatedNotesCSV();
+        }
+        
+        // Network statistics for the actual exported network
+        const statsCSV = this.generateNetworkStats(noteId, nodes, links, completeNetwork, includeIsolated, exportSteps);
+
+        return { 
+            edgesCSV: networkData.edgesCSV, 
+            nodesCSV: networkData.nodesCSV, 
+            statsCSV,
+            isolatedCSV 
+        };
+    }
+
+    // Updated generateStandardNetworkCSVs to include step information
+    generateStandardNetworkCSVs(nodes, links, noteId, includeMetadata, steps = null) {
+        // Enhanced edges CSV with step information
         const edgesHeaders = includeMetadata 
-            ? 'source_id,target_id,source_title,target_title,link_type,source_created,target_created,source_modified,target_modified,source_word_count,target_word_count,source_outgoing_links,target_outgoing_links,source_tags,target_tags,weight'
-            : 'source_id,target_id,source_title,target_title,link_type';
+            ? 'source_id,target_id,source_title,target_title,link_type,step,source_created,target_created,source_modified,target_modified,source_word_count,target_word_count,source_outgoing_links,target_outgoing_links,source_tags,target_tags,weight'
+            : 'source_id,target_id,source_title,target_title,link_type,step';
         
         const edgesRows = links.map(link => {
             const sourceNote = this.notes[link.source];
@@ -257,20 +459,20 @@ class GraphManager {
                 const sourceTags = Array.isArray(sourceMetadata.tags) ? sourceMetadata.tags.join(';') : '';
                 const targetTags = Array.isArray(targetMetadata.tags) ? targetMetadata.tags.join(';') : '';
 
-                return `"${link.source}","${link.target}","${this.escapeCsvValue(sourceNote.title)}","${this.escapeCsvValue(targetNote.title)}","${link.type}","${new Date(sourceNote.created).toISOString()}","${new Date(targetNote.created).toISOString()}","${new Date(sourceNote.modified).toISOString()}","${new Date(targetNote.modified).toISOString()}",${sourceWordCount},${targetWordCount},${sourceOutgoingLinks},${targetOutgoingLinks},"${this.escapeCsvValue(sourceTags)}","${this.escapeCsvValue(targetTags)}",1`;
+                return `"${link.source}","${link.target}","${this.escapeCsvValue(sourceNote.title)}","${this.escapeCsvValue(targetNote.title)}","${link.type}",${link.step || 1},"${new Date(sourceNote.created).toISOString()}","${new Date(targetNote.created).toISOString()}","${new Date(sourceNote.modified).toISOString()}","${new Date(targetNote.modified).toISOString()}",${sourceWordCount},${targetWordCount},${sourceOutgoingLinks},${targetOutgoingLinks},"${this.escapeCsvValue(sourceTags)}","${this.escapeCsvValue(targetTags)}",1`;
             } else {
                 const sourceTitle = sourceNote ? sourceNote.title : 'Unknown';
                 const targetTitle = targetNote ? targetNote.title : 'Unknown';
-                return `"${link.source}","${link.target}","${this.escapeCsvValue(sourceTitle)}","${this.escapeCsvValue(targetTitle)}","${link.type}"`;
+                return `"${link.source}","${link.target}","${this.escapeCsvValue(sourceTitle)}","${this.escapeCsvValue(targetTitle)}","${link.type}",${link.step || 1}`;
             }
         });
 
         const edgesCSV = [edgesHeaders, ...edgesRows].join('\n');
 
-        // Enhanced nodes CSV with comprehensive metadata
+        // Enhanced nodes CSV with step information
         const nodesHeaders = includeMetadata
-            ? 'id,title,is_focal,node_type,created,modified,word_count,character_count,outgoing_links_count,incoming_links_count,tags,first_paragraph,last_modified_days_ago'
-            : 'id,title,is_focal,node_type';
+            ? 'id,title,is_focal,node_type,step,created,modified,word_count,character_count,outgoing_links_count,incoming_links_count,tags,first_paragraph,last_modified_days_ago'
+            : 'id,title,is_focal,node_type,step';
 
         const nodesRows = nodes.map(node => {
             const noteData = this.notes[node.id];
@@ -299,25 +501,42 @@ class GraphManager {
                 // Calculate days since last modification
                 const daysSinceModified = Math.floor((Date.now() - noteData.modified) / (1000 * 60 * 60 * 24));
 
-                return `"${node.id}","${this.escapeCsvValue(node.title)}","${node.id === noteId}","${node.id === noteId ? 'focal' : 'connected'}","${new Date(noteData.created).toISOString()}","${new Date(noteData.modified).toISOString()}",${wordCount},${charCount},${outgoingCount},${incomingCount},"${this.escapeCsvValue(tags)}","${this.escapeCsvValue(firstParagraph)}",${daysSinceModified}`;
+                return `"${node.id}","${this.escapeCsvValue(node.title)}","${node.id === noteId}","${node.id === noteId ? 'focal' : 'connected'}",${node.step || 0},"${new Date(noteData.created).toISOString()}","${new Date(noteData.modified).toISOString()}",${wordCount},${charCount},${outgoingCount},${incomingCount},"${this.escapeCsvValue(tags)}","${this.escapeCsvValue(firstParagraph)}",${daysSinceModified}`;
             } else {
-                return `"${node.id}","${this.escapeCsvValue(node.title)}","${node.id === noteId}","${node.id === noteId ? 'focal' : 'connected'}"`;
+                return `"${node.id}","${this.escapeCsvValue(node.title)}","${node.id === noteId}","${node.id === noteId ? 'focal' : 'connected'}",${node.step || 0}`;
             }
         });
 
         const nodesCSV = [nodesHeaders, ...nodesRows].join('\n');
 
-        // Network statistics for the actual exported network
-        const statsCSV = this.generateNetworkStats(noteId, nodes, links, completeNetwork);
-
-        return { edgesCSV, nodesCSV, statsCSV };
+        return { edgesCSV, nodesCSV };
     }
 
-    // Updated network statistics method
-    generateNetworkStats(focalNoteId, nodes, links, isCompleteNetwork = false) {
+    // Updated generateNetworkStats to include step information
+    generateNetworkStats(focalNoteId, nodes, links, isCompleteNetwork = false, includeIsolated = true, steps = null) {
         const focalNote = this.notes[focalNoteId];
         const totalNodes = nodes.length;
         const totalEdges = links.length;
+        
+        // Get isolated notes info
+        const isolatedNotes = isCompleteNetwork && includeIsolated ? this.findIsolatedNotes() : [];
+        const isolatedCount = isolatedNotes.length;
+        const totalNotesInVault = Object.keys(this.notes).length;
+        const connectedNotesCount = totalNotesInVault - isolatedCount;
+        
+        // Count nodes by step
+        const nodesByStep = {};
+        nodes.forEach(node => {
+            const step = node.step || 0;
+            nodesByStep[step] = (nodesByStep[step] || 0) + 1;
+        });
+        
+        // Count edges by step
+        const edgesByStep = {};
+        links.forEach(link => {
+            const step = link.step || 1;
+            edgesByStep[step] = (edgesByStep[step] || 0) + 1;
+        });
         
         // For complete network, count all link types
         const outgoingEdges = isCompleteNetwork 
@@ -341,10 +560,12 @@ class GraphManager {
             .slice(0, 10)
             .map(([nodeId, centrality]) => {
                 const note = this.notes[nodeId];
+                const nodeData = nodes.find(n => n.id === nodeId);
                 return {
                     nodeId,
                     title: note ? note.title : 'Unknown',
-                    centrality: centrality.toFixed(4)
+                    centrality: centrality.toFixed(4),
+                    step: nodeData ? nodeData.step : 'unknown'
                 };
             });
         
@@ -371,9 +592,14 @@ class GraphManager {
         const statsHeaders = 'metric,value,description';
         const basicStats = [
             `"network_type","${isCompleteNetwork ? 'complete' : 'ego'}","Type of network exported"`,
+            `"max_steps","${steps || (isCompleteNetwork ? 'all' : this.currentSteps)}","Maximum steps from focal note"`,
             `"focal_note_id","${focalNoteId}","ID of the focal note"`,
             `"focal_note_title","${this.escapeCsvValue(focalNote.title)}","Title of the focal note"`,
-            `"total_nodes",${totalNodes},"Total number of notes in network"`,
+            `"total_notes_in_vault",${totalNotesInVault},"Total notes in your vault"`,
+            `"connected_notes",${connectedNotesCount},"Notes with at least one wikilink"`,
+            `"isolated_notes",${isolatedCount},"Notes with no wikilinks (orphans)"`,
+            `"isolation_rate",${(isolatedCount / totalNotesInVault * 100).toFixed(1)}%,"Percentage of notes that are isolated"`,
+            `"nodes_in_network",${totalNodes},"Notes included in network export"`,
             `"total_edges",${totalEdges},"Total number of connections"`,
             `"outgoing_edges_from_focal",${outgoingEdges},"Links from focal note to others"`,
             `"incoming_edges_to_focal",${incomingEdges},"Links from others to focal note"`,
@@ -385,14 +611,32 @@ class GraphManager {
             `"num_communities",${communityStats.numCommunities},"Number of detected communities"`,
             `"modularity",${communityStats.modularity.toFixed(4)},"Community structure quality (higher = better separation)"`,
             `"largest_community_size",${communityStats.largestCommunitySize},"Size of the largest community"`,
-            `"total_notes_in_vault",${Object.keys(this.notes).length},"Total notes in your vault"`,
-            `"network_coverage",${(totalNodes / Object.keys(this.notes).length * 100).toFixed(1)}%,"Percentage of vault included in this network"`,
+            `"network_coverage",${(totalNodes / totalNotesInVault * 100).toFixed(1)}%,"Percentage of vault included in this network"`,
             `"export_timestamp","${new Date().toISOString()}","When this export was generated"`
         ];
         
-        // Add top betweenness centrality nodes
+        // Add step distribution stats
+        const stepStats = [];
+        for (let step = 0; step <= 3; step++) {
+            const count = nodesByStep[step] || 0;
+            if (count > 0 || step === 0) {
+                const stepDescription = step === 0 ? 'focal note' : `${step} step${step > 1 ? 's' : ''} from focal`;
+                stepStats.push(`"nodes_at_step_${step}",${count},"Number of nodes ${stepDescription}"`);
+            }
+        }
+        
+        // Add edge distribution stats
+        const edgeStepStats = [];
+        for (let step = 1; step <= 3; step++) {
+            const count = edgesByStep[step] || 0;
+            if (count > 0) {
+                edgeStepStats.push(`"edges_at_step_${step}",${count},"Connections at step ${step}"`);
+            }
+        }
+        
+        // Add top betweenness centrality nodes with step information
         const betweennessStats = topBetweenness.map((item, index) => 
-            `"betweenness_rank_${index + 1}","${item.nodeId}: ${this.escapeCsvValue(item.title)} (${item.centrality})","Node with ${index === 0 ? 'highest' : 'rank ' + (index + 1)} betweenness centrality"`
+            `"betweenness_rank_${index + 1}","${item.nodeId}: ${this.escapeCsvValue(item.title)} (${item.centrality}) [step ${item.step}]","Node with ${index === 0 ? 'highest' : 'rank ' + (index + 1)} betweenness centrality"`
         );
         
         // Add community information
@@ -400,82 +644,125 @@ class GraphManager {
             `"community_${index + 1}","${community.nodes.join(';')}","Community ${index + 1} members (${community.size} nodes)"`
         );
         
+        // Add sample isolated notes (first 10)
+        const isolatedSamples = isolatedNotes.slice(0, 10).map((note, index) => 
+            `"isolated_note_${index + 1}","${note.id}: ${this.escapeCsvValue(note.title)}","Isolated note example ${index + 1}"`
+        );
+        
         const allStats = [
             statsHeaders,
             ...basicStats,
+            ...stepStats,
+            ...edgeStepStats,
             ...betweennessStats,
-            ...communityInfo
+            ...communityInfo,
+            ...isolatedSamples
         ];
         
         return allStats.join('\n');
     }
 
-    // Find connected components in the network
-    findConnectedComponents(adjacencyList) {
-        const visited = new Set();
-        const nodeIds = Object.keys(adjacencyList);
-        let componentCount = 0;
+    // Find notes that have no wikilink connections (neither incoming nor outgoing)
+    findIsolatedNotes() {
+        const connectedNoteIds = new Set();
         
-        const dfs = (nodeId) => {
-            visited.add(nodeId);
-            adjacencyList[nodeId].forEach(neighbor => {
-                if (!visited.has(neighbor)) {
-                    dfs(neighbor);
-                }
+        // Find all notes that have outgoing or incoming wikilinks
+        Object.values(this.notes).forEach(note => {
+            // Add notes with outgoing links
+            const outgoingLinks = note.getOutgoingLinks();
+            if (outgoingLinks.length > 0) {
+                connectedNoteIds.add(note.id);
+                
+                // Add target notes of outgoing links
+                outgoingLinks.forEach(linkTitle => {
+                    const targetNote = Object.values(this.notes).find(n => 
+                        n.title.toLowerCase() === linkTitle.toLowerCase()
+                    );
+                    if (targetNote) {
+                        connectedNoteIds.add(targetNote.id);
+                    }
+                });
+            }
+            
+            // Check if this note is referenced by others (incoming links)
+            const hasIncomingLinks = Object.values(this.notes).some(otherNote => {
+                if (otherNote.id === note.id) return false;
+                return otherNote.getOutgoingLinks().some(link => 
+                    link.toLowerCase() === note.title.toLowerCase()
+                );
             });
-        };
-        
-        nodeIds.forEach(nodeId => {
-            if (!visited.has(nodeId)) {
-                dfs(nodeId);
-                componentCount++;
+            
+            if (hasIncomingLinks) {
+                connectedNoteIds.add(note.id);
             }
         });
         
-        return componentCount;
+        // Find isolated notes (not in connected set)
+        const isolatedNotes = Object.values(this.notes).filter(note => 
+            !connectedNoteIds.has(note.id)
+        );
+        
+        return isolatedNotes;
     }
 
-    // Calculate network diameter (longest shortest path)
-    calculateNetworkDiameter(adjacencyList) {
-        const nodeIds = Object.keys(adjacencyList);
-        let maxDistance = 0;
+    // Generate isolated notes CSV
+    generateIsolatedNotesCSV() {
+        const isolatedNotes = this.findIsolatedNotes();
         
-        // For performance, sample a subset if network is large
-        const sampleSize = Math.min(nodeIds.length, 50);
-        const sampledNodes = nodeIds.slice(0, sampleSize);
+        const headers = 'id,title,created,modified,word_count,character_count,tags,first_paragraph,last_modified_days_ago,potential_tags';
         
-        sampledNodes.forEach(source => {
-            const distances = this.bfsDistances(source, adjacencyList);
-            const maxDistanceFromSource = Math.max(...Object.values(distances).filter(d => d !== -1));
-            maxDistance = Math.max(maxDistance, maxDistanceFromSource);
-        });
-        
-        return maxDistance;
-    }
-
-    // BFS to find distances from a source node
-    bfsDistances(source, adjacencyList) {
-        const distances = {};
-        const queue = [source];
-        
-        // Initialize distances
-        Object.keys(adjacencyList).forEach(nodeId => {
-            distances[nodeId] = -1;
-        });
-        distances[source] = 0;
-        
-        while (queue.length > 0) {
-            const current = queue.shift();
+        const rows = isolatedNotes.map(note => {
+            const content = note.getContentWithoutMetadata();
+            const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+            const charCount = content.length;
             
-            adjacencyList[current].forEach(neighbor => {
-                if (distances[neighbor] === -1) {
-                    distances[neighbor] = distances[current] + 1;
-                    queue.push(neighbor);
-                }
-            });
-        }
+            // Get tags from metadata
+            const metadata = note.parseMetadata();
+            const tags = Array.isArray(metadata.tags) ? metadata.tags.join(';') : '';
+            
+            // Extract first paragraph
+            const paragraphs = content.split('\n\n').filter(p => p.trim());
+            const firstParagraph = paragraphs.length > 0 ? paragraphs[0].replace(/\n/g, ' ').substring(0, 150) : '';
+            
+            // Calculate days since last modification
+            const daysSinceModified = Math.floor((Date.now() - note.modified) / (1000 * 60 * 60 * 24));
+            
+            // Extract potential tags from content (words that appear frequently, capitalized terms, etc.)
+            const potentialTags = this.extractPotentialTags(content);
+            
+            return `"${note.id}","${this.escapeCsvValue(note.title)}","${new Date(note.created).toISOString()}","${new Date(note.modified).toISOString()}",${wordCount},${charCount},"${this.escapeCsvValue(tags)}","${this.escapeCsvValue(firstParagraph)}",${daysSinceModified},"${this.escapeCsvValue(potentialTags.join(';'))}"`;
+        });
         
-        return distances;
+        return [headers, ...rows].join('\n');
+    }
+
+    // Extract potential tags from note content
+    extractPotentialTags(content) {
+        const potentialTags = new Set();
+        
+        // Find capitalized words (potential proper nouns)
+        const capitalizedWords = content.match(/\b[A-Z][a-z]+\b/g) || [];
+        capitalizedWords.forEach(word => {
+            if (word.length > 3 && !['The', 'This', 'That', 'When', 'Where', 'What', 'Why', 'How'].includes(word)) {
+                potentialTags.add(word);
+            }
+        });
+        
+        // Find hashtags
+        const hashtags = content.match(/#\w+/g) || [];
+        hashtags.forEach(tag => potentialTags.add(tag.substring(1)));
+        
+        // Find quoted terms
+        const quotedTerms = content.match(/"([^"]+)"/g) || [];
+        quotedTerms.forEach(term => {
+            const cleanTerm = term.replace(/"/g, '');
+            if (cleanTerm.length > 3 && cleanTerm.length < 30) {
+                potentialTags.add(cleanTerm);
+            }
+        });
+        
+        // Limit to most relevant tags
+        return Array.from(potentialTags).slice(0, 5);
     }
 
     truncateText(text, maxLength) {
@@ -509,176 +796,6 @@ class GraphManager {
             this.svg.remove();
             this.svg = null;
         }
-    }
-
-    // Enhanced CSV export with rich metadata
-    exportNetworkCSV(noteId, includeMetadata = true) {
-        const note = this.notes[noteId];
-        if (!note) return null;
-
-        const { nodes, links } = this.prepareGraphData(note);
-        
-        // Enhanced edges CSV with comprehensive metadata
-        const edgesHeaders = includeMetadata 
-            ? 'source_id,target_id,source_title,target_title,link_type,source_created,target_created,source_modified,target_modified,source_word_count,target_word_count,source_outgoing_links,target_outgoing_links,source_tags,target_tags,weight'
-            : 'source_id,target_id,source_title,target_title,link_type';
-        
-        const edgesRows = links.map(link => {
-            const sourceNote = this.notes[link.source];
-            const targetNote = this.notes[link.target];
-            
-            if (includeMetadata && sourceNote && targetNote) {
-                // Calculate metadata for both notes
-                const sourceContent = sourceNote.getContentWithoutMetadata();
-                const targetContent = targetNote.getContentWithoutMetadata();
-                const sourceWordCount = sourceContent.trim() ? sourceContent.trim().split(/\s+/).length : 0;
-                const targetWordCount = targetContent.trim() ? targetContent.trim().split(/\s+/).length : 0;
-                const sourceOutgoingLinks = sourceNote.getOutgoingLinks().length;
-                const targetOutgoingLinks = targetNote.getOutgoingLinks().length;
-                
-                // Parse metadata for tags
-                const sourceMetadata = sourceNote.parseMetadata();
-                const targetMetadata = targetNote.parseMetadata();
-                const sourceTags = Array.isArray(sourceMetadata.tags) ? sourceMetadata.tags.join(';') : '';
-                const targetTags = Array.isArray(targetMetadata.tags) ? targetMetadata.tags.join(';') : '';
-
-                return `"${link.source}","${link.target}","${this.escapeCsvValue(sourceNote.title)}","${this.escapeCsvValue(targetNote.title)}","${link.type}","${new Date(sourceNote.created).toISOString()}","${new Date(targetNote.created).toISOString()}","${new Date(sourceNote.modified).toISOString()}","${new Date(targetNote.modified).toISOString()}",${sourceWordCount},${targetWordCount},${sourceOutgoingLinks},${targetOutgoingLinks},"${this.escapeCsvValue(sourceTags)}","${this.escapeCsvValue(targetTags)}",1`;
-            } else {
-                const sourceTitle = sourceNote ? sourceNote.title : 'Unknown';
-                const targetTitle = targetNote ? targetNote.title : 'Unknown';
-                return `"${link.source}","${link.target}","${this.escapeCsvValue(sourceTitle)}","${this.escapeCsvValue(targetTitle)}","${link.type}"`;
-            }
-        });
-
-        const edgesCSV = [edgesHeaders, ...edgesRows].join('\n');
-
-        // Enhanced nodes CSV with comprehensive metadata
-        const nodesHeaders = includeMetadata
-            ? 'id,title,is_current,node_type,created,modified,word_count,character_count,outgoing_links_count,incoming_links_count,tags,first_paragraph,last_modified_days_ago'
-            : 'id,title,is_current,node_type';
-
-        const nodesRows = nodes.map(node => {
-            const noteData = this.notes[node.id];
-            if (includeMetadata && noteData) {
-                const content = noteData.getContentWithoutMetadata();
-                const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
-                const charCount = content.length;
-                const outgoingCount = noteData.getOutgoingLinks().length;
-                
-                // Count incoming links (backlinks)
-                const incomingCount = Object.values(this.notes).filter(n => 
-                    n.id !== noteData.id && 
-                    n.getOutgoingLinks().some(link => 
-                        link.toLowerCase() === noteData.title.toLowerCase()
-                    )
-                ).length;
-                
-                // Get tags from metadata
-                const metadata = noteData.parseMetadata();
-                const tags = Array.isArray(metadata.tags) ? metadata.tags.join(';') : '';
-                
-                // Extract first paragraph
-                const paragraphs = content.split('\n\n').filter(p => p.trim());
-                const firstParagraph = paragraphs.length > 0 ? paragraphs[0].replace(/\n/g, ' ').substring(0, 100) : '';
-                
-                // Calculate days since last modification
-                const daysSinceModified = Math.floor((Date.now() - noteData.modified) / (1000 * 60 * 60 * 24));
-
-                return `"${node.id}","${this.escapeCsvValue(node.title)}","${node.isCurrent}","${node.isCurrent ? 'focal' : 'connected'}","${new Date(noteData.created).toISOString()}","${new Date(noteData.modified).toISOString()}",${wordCount},${charCount},${outgoingCount},${incomingCount},"${this.escapeCsvValue(tags)}","${this.escapeCsvValue(firstParagraph)}",${daysSinceModified}`;
-            } else {
-                return `"${node.id}","${this.escapeCsvValue(node.title)}","${node.isCurrent}","${node.isCurrent ? 'focal' : 'connected'}"`;
-            }
-        });
-
-        const nodesCSV = [nodesHeaders, ...nodesRows].join('\n');
-
-        // Additional network statistics CSV
-        const statsCSV = this.generateNetworkStats(noteId, nodes, links);
-
-        return { edgesCSV, nodesCSV, statsCSV };
-    }
-
-    // Generate network statistics
-// Enhanced network statistics with community detection and centrality analysis
-    generateNetworkStats(focalNoteId, nodes, links) {
-        const focalNote = this.notes[focalNoteId];
-        const totalNodes = nodes.length;
-        const totalEdges = links.length;
-        const outgoingEdges = links.filter(l => l.type === 'outgoing').length;
-        const incomingEdges = links.filter(l => l.type === 'incoming').length;
-        
-        // Calculate network density
-        const maxPossibleEdges = totalNodes * (totalNodes - 1);
-        const density = maxPossibleEdges > 0 ? (totalEdges * 2) / maxPossibleEdges : 0;
-        
-        // Build adjacency list for algorithms
-        const adjacencyList = this.buildAdjacencyList(nodes, links);
-        
-        // Calculate betweenness centrality
-        const betweennessCentrality = this.calculateBetweennessCentrality(nodes, adjacencyList);
-        const topBetweenness = Object.entries(betweennessCentrality)
-            .sort(([,a], [,b]) => b - a)
-            .slice(0, 10)
-            .map(([nodeId, centrality]) => {
-                const note = this.notes[nodeId];
-                return {
-                    nodeId,
-                    title: note ? note.title : 'Unknown',
-                    centrality: centrality.toFixed(4)
-                };
-            });
-        
-        // Detect communities using Louvain algorithm
-        const communities = this.detectCommunitiesLouvain(nodes, adjacencyList);
-        const communityStats = this.analyzeCommunities(communities, nodes);
-        
-        // Get degree distribution
-        const degrees = {};
-        links.forEach(link => {
-            degrees[link.source] = (degrees[link.source] || 0) + 1;
-            degrees[link.target] = (degrees[link.target] || 0) + 1;
-        });
-        
-        const degreeValues = Object.values(degrees);
-        const avgDegree = degreeValues.length > 0 ? degreeValues.reduce((a, b) => a + b, 0) / degreeValues.length : 0;
-        const maxDegree = degreeValues.length > 0 ? Math.max(...degreeValues) : 0;
-        
-        // Build comprehensive stats CSV
-        const statsHeaders = 'metric,value,description';
-        const basicStats = [
-            `"focal_note_id","${focalNoteId}","ID of the central note"`,
-            `"focal_note_title","${this.escapeCsvValue(focalNote.title)}","Title of the central note"`,
-            `"total_nodes",${totalNodes},"Total number of connected notes"`,
-            `"total_edges",${totalEdges},"Total number of connections"`,
-            `"outgoing_edges",${outgoingEdges},"Links from focal note to others"`,
-            `"incoming_edges",${incomingEdges},"Links from others to focal note"`,
-            `"network_density",${density.toFixed(4)},"Ratio of actual to possible connections"`,
-            `"average_degree",${avgDegree.toFixed(2)},"Average connections per note"`,
-            `"max_degree",${maxDegree},"Maximum connections for any note"`,
-            `"num_communities",${communityStats.numCommunities},"Number of detected communities"`,
-            `"modularity",${communityStats.modularity.toFixed(4)},"Community structure quality (higher = better separation)"`,
-            `"largest_community_size",${communityStats.largestCommunitySize},"Size of the largest community"`,
-            `"export_timestamp","${new Date().toISOString()}","When this export was generated"`
-        ];
-        
-        // Add top betweenness centrality nodes
-        const betweennessStats = topBetweenness.map((item, index) => 
-            `"betweenness_rank_${index + 1}","${item.nodeId}: ${this.escapeCsvValue(item.title)} (${item.centrality})","Node with ${index === 0 ? 'highest' : 'rank ' + (index + 1)} betweenness centrality"`
-        );
-        
-        // Add community information
-        const communityInfo = communityStats.communities.map((community, index) => 
-            `"community_${index + 1}","${community.nodes.join(';')}","Community ${index + 1} members (${community.size} nodes)"`
-        );
-        
-        const allStats = [
-            statsHeaders,
-            ...basicStats,
-            ...betweennessStats,
-            ...communityInfo
-        ];
-        
-        return allStats.join('\n');
     }
 
     // Build adjacency list representation
@@ -933,328 +1050,72 @@ class GraphManager {
         return Math.min(0.8, 0.3 + (uniqueCommunities.size / totalNodes) * 0.5);
     }
 
-// Find notes that have no wikilink connections (neither incoming nor outgoing)
-    findIsolatedNotes() {
-        const connectedNoteIds = new Set();
+    // Find connected components in the network
+    findConnectedComponents(adjacencyList) {
+        const visited = new Set();
+        const nodeIds = Object.keys(adjacencyList);
+        let componentCount = 0;
         
-        // Find all notes that have outgoing or incoming wikilinks
-        Object.values(this.notes).forEach(note => {
-            // Add notes with outgoing links
-            const outgoingLinks = note.getOutgoingLinks();
-            if (outgoingLinks.length > 0) {
-                connectedNoteIds.add(note.id);
-                
-                // Add target notes of outgoing links
-                outgoingLinks.forEach(linkTitle => {
-                    const targetNote = Object.values(this.notes).find(n => 
-                        n.title.toLowerCase() === linkTitle.toLowerCase()
-                    );
-                    if (targetNote) {
-                        connectedNoteIds.add(targetNote.id);
-                    }
-                });
-            }
-            
-            // Check if this note is referenced by others (incoming links)
-            const hasIncomingLinks = Object.values(this.notes).some(otherNote => {
-                if (otherNote.id === note.id) return false;
-                return otherNote.getOutgoingLinks().some(link => 
-                    link.toLowerCase() === note.title.toLowerCase()
-                );
+        const dfs = (nodeId) => {
+            visited.add(nodeId);
+            adjacencyList[nodeId].forEach(neighbor => {
+                if (!visited.has(neighbor)) {
+                    dfs(neighbor);
+                }
             });
-            
-            if (hasIncomingLinks) {
-                connectedNoteIds.add(note.id);
+        };
+        
+        nodeIds.forEach(nodeId => {
+            if (!visited.has(nodeId)) {
+                dfs(nodeId);
+                componentCount++;
             }
         });
         
-        // Find isolated notes (not in connected set)
-        const isolatedNotes = Object.values(this.notes).filter(note => 
-            !connectedNoteIds.has(note.id)
-        );
-        
-        return isolatedNotes;
+        return componentCount;
     }
 
-    // Generate isolated notes CSV
-    generateIsolatedNotesCSV() {
-        const isolatedNotes = this.findIsolatedNotes();
+    // Calculate network diameter (longest shortest path)
+    calculateNetworkDiameter(adjacencyList) {
+        const nodeIds = Object.keys(adjacencyList);
+        let maxDistance = 0;
         
-        const headers = 'id,title,created,modified,word_count,character_count,tags,first_paragraph,last_modified_days_ago,potential_tags';
+        // For performance, sample a subset if network is large
+        const sampleSize = Math.min(nodeIds.length, 50);
+        const sampledNodes = nodeIds.slice(0, sampleSize);
         
-        const rows = isolatedNotes.map(note => {
-            const content = note.getContentWithoutMetadata();
-            const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
-            const charCount = content.length;
-            
-            // Get tags from metadata
-            const metadata = note.parseMetadata();
-            const tags = Array.isArray(metadata.tags) ? metadata.tags.join(';') : '';
-            
-            // Extract first paragraph
-            const paragraphs = content.split('\n\n').filter(p => p.trim());
-            const firstParagraph = paragraphs.length > 0 ? paragraphs[0].replace(/\n/g, ' ').substring(0, 150) : '';
-            
-            // Calculate days since last modification
-            const daysSinceModified = Math.floor((Date.now() - note.modified) / (1000 * 60 * 60 * 24));
-            
-            // Extract potential tags from content (words that appear frequently, capitalized terms, etc.)
-            const potentialTags = this.extractPotentialTags(content);
-            
-            return `"${note.id}","${this.escapeCsvValue(note.title)}","${new Date(note.created).toISOString()}","${new Date(note.modified).toISOString()}",${wordCount},${charCount},"${this.escapeCsvValue(tags)}","${this.escapeCsvValue(firstParagraph)}",${daysSinceModified},"${this.escapeCsvValue(potentialTags.join(';'))}"`;
+        sampledNodes.forEach(source => {
+            const distances = this.bfsDistances(source, adjacencyList);
+            const maxDistanceFromSource = Math.max(...Object.values(distances).filter(d => d !== -1));
+            maxDistance = Math.max(maxDistance, maxDistanceFromSource);
         });
         
-        return [headers, ...rows].join('\n');
+        return maxDistance;
     }
 
-    // Extract potential tags from note content
-    extractPotentialTags(content) {
-        const potentialTags = new Set();
+    // BFS to find distances from a source node
+    bfsDistances(source, adjacencyList) {
+        const distances = {};
+        const queue = [source];
         
-        // Find capitalized words (potential proper nouns)
-        const capitalizedWords = content.match(/\b[A-Z][a-z]+\b/g) || [];
-        capitalizedWords.forEach(word => {
-            if (word.length > 3 && !['The', 'This', 'That', 'When', 'Where', 'What', 'Why', 'How'].includes(word)) {
-                potentialTags.add(word);
-            }
+        // Initialize distances
+        Object.keys(adjacencyList).forEach(nodeId => {
+            distances[nodeId] = -1;
         });
+        distances[source] = 0;
         
-        // Find hashtags
-        const hashtags = content.match(/#\w+/g) || [];
-        hashtags.forEach(tag => potentialTags.add(tag.substring(1)));
-        
-        // Find quoted terms
-        const quotedTerms = content.match(/"([^"]+)"/g) || [];
-        quotedTerms.forEach(term => {
-            const cleanTerm = term.replace(/"/g, '');
-            if (cleanTerm.length > 3 && cleanTerm.length < 30) {
-                potentialTags.add(cleanTerm);
-            }
-        });
-        
-        // Limit to most relevant tags
-        return Array.from(potentialTags).slice(0, 5);
-    }
-
-    // Enhanced exportNetworkCSV to include isolated notes option
-    exportNetworkCSV(noteId, includeMetadata = true, completeNetwork = false, includeIsolated = true) {
-        const note = this.notes[noteId];
-        if (!note) return null;
-
-        // Choose between ego network or complete network
-        const { nodes, links } = completeNetwork 
-            ? this.prepareCompleteNetworkData() 
-            : this.prepareGraphData(note);
-        
-        // Generate standard network CSVs
-        const networkData = this.generateStandardNetworkCSVs(nodes, links, noteId, includeMetadata);
-        
-        // Generate isolated notes CSV if requested
-        let isolatedCSV = null;
-        if (includeIsolated && completeNetwork) {
-            isolatedCSV = this.generateIsolatedNotesCSV();
+        while (queue.length > 0) {
+            const current = queue.shift();
+            
+            adjacencyList[current].forEach(neighbor => {
+                if (distances[neighbor] === -1) {
+                    distances[neighbor] = distances[current] + 1;
+                    queue.push(neighbor);
+                }
+            });
         }
         
-        // Network statistics for the actual exported network
-        const statsCSV = this.generateNetworkStats(noteId, nodes, links, completeNetwork, includeIsolated);
-
-        return { 
-            edgesCSV: networkData.edgesCSV, 
-            nodesCSV: networkData.nodesCSV, 
-            statsCSV,
-            isolatedCSV 
-        };
-    }
-
-    // Separated method for generating standard network CSVs
-    generateStandardNetworkCSVs(nodes, links, noteId, includeMetadata) {
-        // Enhanced edges CSV with comprehensive metadata
-        const edgesHeaders = includeMetadata 
-            ? 'source_id,target_id,source_title,target_title,link_type,source_created,target_created,source_modified,target_modified,source_word_count,target_word_count,source_outgoing_links,target_outgoing_links,source_tags,target_tags,weight'
-            : 'source_id,target_id,source_title,target_title,link_type';
-        
-        const edgesRows = links.map(link => {
-            const sourceNote = this.notes[link.source];
-            const targetNote = this.notes[link.target];
-            
-            if (includeMetadata && sourceNote && targetNote) {
-                // Calculate metadata for both notes
-                const sourceContent = sourceNote.getContentWithoutMetadata();
-                const targetContent = targetNote.getContentWithoutMetadata();
-                const sourceWordCount = sourceContent.trim() ? sourceContent.trim().split(/\s+/).length : 0;
-                const targetWordCount = targetContent.trim() ? targetContent.trim().split(/\s+/).length : 0;
-                const sourceOutgoingLinks = sourceNote.getOutgoingLinks().length;
-                const targetOutgoingLinks = targetNote.getOutgoingLinks().length;
-                
-                // Parse metadata for tags
-                const sourceMetadata = sourceNote.parseMetadata();
-                const targetMetadata = targetNote.parseMetadata();
-                const sourceTags = Array.isArray(sourceMetadata.tags) ? sourceMetadata.tags.join(';') : '';
-                const targetTags = Array.isArray(targetMetadata.tags) ? targetMetadata.tags.join(';') : '';
-
-                return `"${link.source}","${link.target}","${this.escapeCsvValue(sourceNote.title)}","${this.escapeCsvValue(targetNote.title)}","${link.type}","${new Date(sourceNote.created).toISOString()}","${new Date(targetNote.created).toISOString()}","${new Date(sourceNote.modified).toISOString()}","${new Date(targetNote.modified).toISOString()}",${sourceWordCount},${targetWordCount},${sourceOutgoingLinks},${targetOutgoingLinks},"${this.escapeCsvValue(sourceTags)}","${this.escapeCsvValue(targetTags)}",1`;
-            } else {
-                const sourceTitle = sourceNote ? sourceNote.title : 'Unknown';
-                const targetTitle = targetNote ? targetNote.title : 'Unknown';
-                return `"${link.source}","${link.target}","${this.escapeCsvValue(sourceTitle)}","${this.escapeCsvValue(targetTitle)}","${link.type}"`;
-            }
-        });
-
-        const edgesCSV = [edgesHeaders, ...edgesRows].join('\n');
-
-        // Enhanced nodes CSV with comprehensive metadata
-        const nodesHeaders = includeMetadata
-            ? 'id,title,is_focal,node_type,created,modified,word_count,character_count,outgoing_links_count,incoming_links_count,tags,first_paragraph,last_modified_days_ago'
-            : 'id,title,is_focal,node_type';
-
-        const nodesRows = nodes.map(node => {
-            const noteData = this.notes[node.id];
-            if (includeMetadata && noteData) {
-                const content = noteData.getContentWithoutMetadata();
-                const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
-                const charCount = content.length;
-                const outgoingCount = noteData.getOutgoingLinks().length;
-                
-                // Count incoming links (backlinks) from the complete network
-                const incomingCount = Object.values(this.notes).filter(n => 
-                    n.id !== noteData.id && 
-                    n.getOutgoingLinks().some(link => 
-                        link.toLowerCase() === noteData.title.toLowerCase()
-                    )
-                ).length;
-                
-                // Get tags from metadata
-                const metadata = noteData.parseMetadata();
-                const tags = Array.isArray(metadata.tags) ? metadata.tags.join(';') : '';
-                
-                // Extract first paragraph
-                const paragraphs = content.split('\n\n').filter(p => p.trim());
-                const firstParagraph = paragraphs.length > 0 ? paragraphs[0].replace(/\n/g, ' ').substring(0, 100) : '';
-                
-                // Calculate days since last modification
-                const daysSinceModified = Math.floor((Date.now() - noteData.modified) / (1000 * 60 * 60 * 24));
-
-                return `"${node.id}","${this.escapeCsvValue(node.title)}","${node.id === noteId}","${node.id === noteId ? 'focal' : 'connected'}","${new Date(noteData.created).toISOString()}","${new Date(noteData.modified).toISOString()}",${wordCount},${charCount},${outgoingCount},${incomingCount},"${this.escapeCsvValue(tags)}","${this.escapeCsvValue(firstParagraph)}",${daysSinceModified}`;
-            } else {
-                return `"${node.id}","${this.escapeCsvValue(node.title)}","${node.id === noteId}","${node.id === noteId ? 'focal' : 'connected'}"`;
-            }
-        });
-
-        const nodesCSV = [nodesHeaders, ...nodesRows].join('\n');
-
-        return { edgesCSV, nodesCSV };
-    }
-
-    // Updated generateNetworkStats to include isolated notes information
-    generateNetworkStats(focalNoteId, nodes, links, isCompleteNetwork = false, includeIsolated = true) {
-        const focalNote = this.notes[focalNoteId];
-        const totalNodes = nodes.length;
-        const totalEdges = links.length;
-        
-        // Get isolated notes info
-        const isolatedNotes = isCompleteNetwork && includeIsolated ? this.findIsolatedNotes() : [];
-        const isolatedCount = isolatedNotes.length;
-        const totalNotesInVault = Object.keys(this.notes).length;
-        const connectedNotesCount = totalNotesInVault - isolatedCount;
-        
-        // For complete network, count all link types
-        const outgoingEdges = isCompleteNetwork 
-            ? links.filter(l => l.source === focalNoteId).length
-            : links.filter(l => l.type === 'outgoing').length;
-        const incomingEdges = isCompleteNetwork 
-            ? links.filter(l => l.target === focalNoteId).length
-            : links.filter(l => l.type === 'incoming').length;
-        
-        // Calculate network density
-        const maxPossibleEdges = totalNodes * (totalNodes - 1);
-        const density = maxPossibleEdges > 0 ? (totalEdges * 2) / maxPossibleEdges : 0;
-        
-        // Build adjacency list for algorithms
-        const adjacencyList = this.buildAdjacencyList(nodes, links);
-        
-        // Calculate betweenness centrality
-        const betweennessCentrality = this.calculateBetweennessCentrality(nodes, adjacencyList);
-        const topBetweenness = Object.entries(betweennessCentrality)
-            .sort(([,a], [,b]) => b - a)
-            .slice(0, 10)
-            .map(([nodeId, centrality]) => {
-                const note = this.notes[nodeId];
-                return {
-                    nodeId,
-                    title: note ? note.title : 'Unknown',
-                    centrality: centrality.toFixed(4)
-                };
-            });
-        
-        // Detect communities using Louvain algorithm
-        const communities = this.detectCommunitiesLouvain(nodes, adjacencyList);
-        const communityStats = this.analyzeCommunities(communities, nodes);
-        
-        // Get degree distribution
-        const degrees = {};
-        links.forEach(link => {
-            degrees[link.source] = (degrees[link.source] || 0) + 1;
-            degrees[link.target] = (degrees[link.target] || 0) + 1;
-        });
-        
-        const degreeValues = Object.values(degrees);
-        const avgDegree = degreeValues.length > 0 ? degreeValues.reduce((a, b) => a + b, 0) / degreeValues.length : 0;
-        const maxDegree = degreeValues.length > 0 ? Math.max(...degreeValues) : 0;
-        
-        // Calculate additional network metrics for complete network
-        const connectedComponents = isCompleteNetwork ? this.findConnectedComponents(adjacencyList) : 1;
-        const networkDiameter = isCompleteNetwork ? this.calculateNetworkDiameter(adjacencyList) : 'N/A';
-        
-        // Build comprehensive stats CSV
-        const statsHeaders = 'metric,value,description';
-        const basicStats = [
-            `"network_type","${isCompleteNetwork ? 'complete' : 'ego'}","Type of network exported"`,
-            `"focal_note_id","${focalNoteId}","ID of the focal note"`,
-            `"focal_note_title","${this.escapeCsvValue(focalNote.title)}","Title of the focal note"`,
-            `"total_notes_in_vault",${totalNotesInVault},"Total notes in your vault"`,
-            `"connected_notes",${connectedNotesCount},"Notes with at least one wikilink"`,
-            `"isolated_notes",${isolatedCount},"Notes with no wikilinks (orphans)"`,
-            `"isolation_rate",${(isolatedCount / totalNotesInVault * 100).toFixed(1)}%,"Percentage of notes that are isolated"`,
-            `"nodes_in_network",${totalNodes},"Notes included in network export"`,
-            `"total_edges",${totalEdges},"Total number of connections"`,
-            `"outgoing_edges_from_focal",${outgoingEdges},"Links from focal note to others"`,
-            `"incoming_edges_to_focal",${incomingEdges},"Links from others to focal note"`,
-            `"network_density",${density.toFixed(4)},"Ratio of actual to possible connections"`,
-            `"average_degree",${avgDegree.toFixed(2)},"Average connections per note"`,
-            `"max_degree",${maxDegree},"Maximum connections for any note"`,
-            `"connected_components",${connectedComponents},"Number of disconnected subgraphs"`,
-            `"network_diameter","${networkDiameter}","Longest shortest path in network"`,
-            `"num_communities",${communityStats.numCommunities},"Number of detected communities"`,
-            `"modularity",${communityStats.modularity.toFixed(4)},"Community structure quality (higher = better separation)"`,
-            `"largest_community_size",${communityStats.largestCommunitySize},"Size of the largest community"`,
-            `"network_coverage",${(totalNodes / totalNotesInVault * 100).toFixed(1)}%,"Percentage of vault included in this network"`,
-            `"export_timestamp","${new Date().toISOString()}","When this export was generated"`
-        ];
-        
-        // Add top betweenness centrality nodes
-        const betweennessStats = topBetweenness.map((item, index) => 
-            `"betweenness_rank_${index + 1}","${item.nodeId}: ${this.escapeCsvValue(item.title)} (${item.centrality})","Node with ${index === 0 ? 'highest' : 'rank ' + (index + 1)} betweenness centrality"`
-        );
-        
-        // Add community information
-        const communityInfo = communityStats.communities.map((community, index) => 
-            `"community_${index + 1}","${community.nodes.join(';')}","Community ${index + 1} members (${community.size} nodes)"`
-        );
-        
-        // Add sample isolated notes (first 10)
-        const isolatedSamples = isolatedNotes.slice(0, 10).map((note, index) => 
-            `"isolated_note_${index + 1}","${note.id}: ${this.escapeCsvValue(note.title)}","Isolated note example ${index + 1}"`
-        );
-        
-        const allStats = [
-            statsHeaders,
-            ...basicStats,
-            ...betweennessStats,
-            ...communityInfo,
-            ...isolatedSamples
-        ];
-        
-        return allStats.join('\n');
+        return distances;
     }
 
     // Helper method to properly escape CSV values

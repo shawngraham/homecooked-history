@@ -106,9 +106,14 @@ body {
 /* Main Layout */
 .main {
     display: grid;
-    grid-template-columns: 280px 1fr 280px;
+    grid-template-columns: 280px minmax(0, 1fr) 280px;
     height: 100%;
     overflow: hidden;
+}
+
+.editor-area {
+    position: relative;
+    overflow: hidden; /* Failsafe to hide any visual glitches */
 }
 
 /* Sidebar */
@@ -169,15 +174,22 @@ body {
 }
 
 .editor-panes-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
-    flex: 1;
-    overflow-x: auto;
+    overflow-x: auto; /* This will now create the scrollbar when needed */
     height: 100%;
 }
 
+
+
 .editor-container {
-    flex: 1 1 50%; /* Each pane takes up equal space */
-    min-width: 450px; /* Minimum width before scrollbar appears */
+    flex-shrink: 0; 
+    min-width: 450px;
+    width: 450px; 
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
@@ -716,3 +728,107 @@ body {
     opacity: 1 !important;
 }
 
+/* Graph Controls Styling */
+.graph-controls {
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px;
+}
+
+.step-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.step-btn:hover {
+    background: var(--background);
+    border-color: var(--primary);
+    transform: translateY(-1px);
+}
+
+.step-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+/* Graph SVG Container */
+.graph-svg-container {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--background);
+    margin-bottom: 8px;
+    position: relative;
+}
+
+/* Step Legend Styling */
+.step-legend {
+    pointer-events: none;
+    user-select: none;
+}
+
+.step-legend text {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 9px;
+    fill: var(--text-muted);
+}
+
+.step-legend circle {
+    stroke: var(--border);
+    stroke-width: 1;
+}
+
+/* Enhanced graph node styling for different steps */
+.graph-container svg .node-step-1 {
+    filter: drop-shadow(0 2px 4px rgba(5, 150, 105, 0.3));
+}
+
+.graph-container svg .node-step-2 {
+    filter: drop-shadow(0 1px 3px rgba(217, 119, 6, 0.3));
+}
+
+.graph-container svg .node-step-3 {
+    filter: drop-shadow(0 1px 2px rgba(100, 116, 139, 0.2));
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .step-btn {
+    background: var(--surface);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .step-btn:hover {
+    background: var(--background);
+}
+
+[data-theme="dark"] .step-btn.active {
+    background: var(--primary);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+[data-theme="dark"] .graph-svg-container {
+    background: var(--surface);
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 768px) {
+    .graph-controls {
+        flex-wrap: wrap;
+        gap: 2px;
+    }
+    
+    .step-btn {
+        padding: 3px 6px;
+        font-size: 10px;
+    }
+}

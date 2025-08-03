@@ -26,27 +26,36 @@
         </header>
 
         <main class="main">
-            <aside class="sidebar">
-                <div class="sidebar-header">All Notes</div>
-                <div class="note-list" id="noteList"></div>
-            </aside>
+    <aside class="sidebar">
+        <div class="sidebar-header">All Notes</div>
+        <div class="note-list" id="noteList"></div>
+    </aside>
 
-            <!-- This container will now hold all the editor panes -->
-            <div class="editor-panes-container" id="editorPanesContainer">
-                <div class="empty-state">
-                    <h3>Welcome to PKM Notes</h3>
-                    <p>Select a note from the sidebar or create a new one to get started.</p>
-                </div>
+    <!--
+      Correct Structure:
+      1. A wrapper div that is the grid item.
+    -->
+    <div class="editor-area">
+      <!--
+        2. Inside it, the ONE container that will scroll.
+           Your app.js will add/remove notes from here.
+      -->
+      <div class="editor-panes-container" id="editorPanesContainer">
+        <div class="empty-state">
+          <h3>Welcome to PKM Notes</h3>
+          <p>Select a note from the sidebar or create a new one to get started.</p>
+        </div>
+      </div>
+    </div>
+
+    <aside class="right-sidebar" id="rightSidebar">
+        <div class="right-sidebar-content">
+             <div class="empty-sidebar">
+                <p>No note selected.</p>
             </div>
-
-            <aside class="right-sidebar" id="rightSidebar">
-                <div class="right-sidebar-content">
-                     <div class="empty-sidebar">
-                        <p>No note selected.</p>
-                    </div>
-                </div>
-            </aside>
-        </main>
+        </div>
+    </aside>
+</main>
     </div>
 
     <input type="file" id="fileInput" multiple accept=".md,.txt" class="hidden">
