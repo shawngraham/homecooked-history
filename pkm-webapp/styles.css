@@ -601,21 +601,24 @@ body {
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 12px;  /* Slightly wider for easier clicking */
+    height: 12px; /* Slightly taller for easier clicking */
 }
 
 ::-webkit-scrollbar-track {
-    background: transparent;
+    /* Do NOT use transparent. Use the actual background color. */
+    background: var(--surface);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 4px;
+    background-color: var(--border);
+    border-radius: 6px;
+    /* Add a border to the thumb itself to make it stand out */
+    border: 3px solid var(--surface);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+    background-color: var(--text-muted);
 }
 
 /* Hidden file input */
