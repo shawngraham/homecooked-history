@@ -54,7 +54,7 @@ This is a **toy** that I intend to use with students to introduce ideas of perso
 3. Start writing in markdown format
 4. Use `[[Note Title]]` to link to other notes
 5. Right-click on notes in the sidebar for additional options
-6. You can create new notes by writing a wikilink to a non-existing note; view in preview then click the wikilink to create 
+6. You can create new notes by writing a wikilink to a non-existing note; before you get to the final ]], autocomplete will ask if you wish to create that note. Click on that modal to create!
 
 ### Block Embeds
 
