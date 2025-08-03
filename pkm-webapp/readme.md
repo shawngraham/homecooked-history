@@ -2,6 +2,8 @@
 
 A personal knowledge management web application for creating, organizing, and linking notes in your browser. All data is stored locally using browser storage - no server required.
 
+Try the version at [https://pkm-webnotes.netlify.app/](https://pkm-webnotes.netlify.app/) for a memorable url.
+
 This is a **toy** that I intend to use with students to introduce ideas of personal knowledge management before introducing them to something more substantial.
 
 ## Features
