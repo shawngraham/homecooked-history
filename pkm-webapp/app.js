@@ -402,38 +402,115 @@ class PKMApp {
     }
 
     // --- Network Data Export Method ---
+    // --- Network Data Export Method ---
     exportNetworkData(noteId) {
-        const networkData = this.graphManager.exportNetworkCSV(noteId, true); // Include metadata
+        // Show export options
+        const exportMenu = document.createElement('div');
+        exportMenu.className = 'context-menu';
+        exportMenu.style.position = 'fixed';
+        exportMenu.style.top = '50%';
+        exportMenu.style.left = '50%';
+        exportMenu.style.transform = 'translate(-50%, -50%)';
+        exportMenu.style.zIndex = '10000';
+        
+        exportMenu.innerHTML = `
+            <div style="padding: 8px 0; font-weight: 600; border-bottom: 1px solid var(--border); margin-bottom: 8px;">Network Export Options</div>
+            <button class="context-menu-item" data-action="export-complete">🌐 Complete Network</button>
+            <div style="font-size: 11px; color: var(--text-muted); padding: 4px 12px;">All notes and connections</div>
+            <button class="context-menu-item" data-action="export-ego">🎯 Ego Network</button>
+            <div style="font-size: 11px; color: var(--text-muted); padding: 4px 12px;">Just this note's connections</div>
+            <div class="context-menu-separator"></div>
+            <button class="context-menu-item" data-action="cancel">❌ Cancel</button>
+        `;
+        
+        document.body.appendChild(exportMenu);
+        
+        // Add event listeners
+        exportMenu.querySelector('[data-action="export-complete"]').addEventListener('click', () => {
+            this.performNetworkExport(noteId, true); // Complete network
+            exportMenu.remove();
+        });
+        
+        exportMenu.querySelector('[data-action="export-ego"]').addEventListener('click', () => {
+            this.performNetworkExport(noteId, false); // Ego network
+            exportMenu.remove();
+        });
+        
+        exportMenu.querySelector('[data-action="cancel"]').addEventListener('click', () => {
+            exportMenu.remove();
+        });
+        
+        // Close on outside click
+        setTimeout(() => {
+            document.addEventListener('click', function closeExportMenu(e) {
+                if (!exportMenu.contains(e.target)) {
+                    exportMenu.remove();
+                    document.removeEventListener('click', closeExportMenu);
+                }
+            });
+        }, 100);
+    }
+
+    // Perform the actual network export
+// Perform the actual network export
+    performNetworkExport(noteId, completeNetwork = true) {
+        const networkData = this.graphManager.exportNetworkCSV(noteId, true, completeNetwork, true);
         if (!networkData) return;
 
         const note = this.notes[noteId];
         const timestamp = new Date().toISOString().split('T')[0];
         const safeTitle = note.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const networkType = completeNetwork ? 'complete' : 'ego';
 
-        // Download all three CSV files with staggered timing
+        // Count files to download
+        let fileCount = 3; // edges, nodes, stats
+        if (networkData.isolatedCSV && completeNetwork) {
+            fileCount = 4; // add isolated notes
+        }
+
+        // Download all CSV files with staggered timing
         this.graphManager.downloadCSV(
             networkData.edgesCSV, 
-            `${safeTitle}_network_edges_${timestamp}.csv`
+            `${safeTitle}_${networkType}_edges_${timestamp}.csv`
         );
 
         setTimeout(() => {
             this.graphManager.downloadCSV(
                 networkData.nodesCSV, 
-                `${safeTitle}_network_nodes_${timestamp}.csv`
+                `${safeTitle}_${networkType}_nodes_${timestamp}.csv`
             );
         }, 100);
 
         setTimeout(() => {
             this.graphManager.downloadCSV(
                 networkData.statsCSV, 
-                `${safeTitle}_network_stats_${timestamp}.csv`
+                `${safeTitle}_${networkType}_stats_${timestamp}.csv`
             );
         }, 200);
 
+        // Download isolated notes if available
+        if (networkData.isolatedCSV && completeNetwork) {
+            setTimeout(() => {
+                this.graphManager.downloadCSV(
+                    networkData.isolatedCSV, 
+                    `${safeTitle}_isolated_notes_${timestamp}.csv`
+                );
+            }, 300);
+        }
+
         // Show user feedback
+        const totalNotes = Object.keys(this.notes).length;
+        const networkSize = completeNetwork ? totalNotes : 'limited to connections';
+        
         setTimeout(() => {
-            alert(`Network data exported!\n\nDownloaded 3 files:\n• Edges (connections)\n• Nodes (notes)\n• Statistics (network metrics)`);
-        }, 300);
+            let message = `${completeNetwork ? 'Complete' : 'Ego'} network data exported!\n\nNetwork size: ${networkSize} notes\nDownloaded ${fileCount} files:\n• Edges (connections)\n• Nodes (connected notes)\n• Statistics (metrics with centrality & communities)`;
+            
+            if (networkData.isolatedCSV && completeNetwork) {
+                message += '\n• Isolated Notes (orphan notes with no wikilinks)';
+            }
+            
+            alert(message);
+        }, 400);
     }
 
     // --- Context Menu & Note List Sidebar ---
