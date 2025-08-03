@@ -283,48 +283,48 @@ class PKMApp {
     }
     
     saveNoteFromPane(paneId) {
-    const pane = this.getPane(paneId);
-    if (!pane) return;
-    const paneEl = document.querySelector(`.editor-container[data-pane-id="${paneId}"]`);
-    if (!paneEl) return;
-    const note = this.notes[pane.noteId];
-    const content = paneEl.querySelector('.editor-textarea').value;
-    const oldTitle = note.title;
+        const pane = this.getPane(paneId);
+        if (!pane) return;
+        const paneEl = document.querySelector(`.editor-container[data-pane-id="${paneId}"]`);
+        if (!paneEl) return;
+        const note = this.notes[pane.noteId];
+        const content = paneEl.querySelector('.editor-textarea').value;
+        const oldTitle = note.title;
 
-    note.update(content, true);
+        note.update(content, true);
 
-    if (oldTitle !== note.title) {
-        // Title changed - need to update both sidebar and all panes
-        this.renderNoteList();
-        this.renderAllPanes(); // This recreates all pane elements
+        if (oldTitle !== note.title) {
+            // Title changed - need to update both sidebar and all panes
+            this.renderNoteList();
+            this.renderAllPanes(); // This recreates all pane elements
             // Force sidebar update after a brief delay
-    setTimeout(() => {
-        this.updateActiveNoteInSidebar();
-    }, 10);
-        // Don't try to use paneEl after this point - it's been recreated
-    } else {
-        // Title unchanged - just update the current pane's title
-        paneEl.querySelector('.editor-title').textContent = note.title;
-        // Update the save status for this specific pane
-        paneEl.querySelector('.save-status').textContent = `Saved`;
-    }
-    
-    this.saveNotes();
-    this.backlinksManager.updateNotes(this.notes);
-    this.graphManager.updateNotes(this.notes);
-    this.updateRightSidebar();
-    
-    // Only update save status if we didn't re-render all panes
-    if (oldTitle === note.title) {
-        // Save status was already updated above
-    } else {
-        // After renderAllPanes(), we need to find the new pane element
-        const newPaneEl = document.querySelector(`.editor-container[data-pane-id="${paneId}"]`);
-        if (newPaneEl) {
-            newPaneEl.querySelector('.save-status').textContent = `Saved`;
+            setTimeout(() => {
+                this.updateActiveNoteInSidebar();
+            }, 10);
+            // Don't try to use paneEl after this point - it's been recreated
+        } else {
+            // Title unchanged - just update the current pane's title
+            paneEl.querySelector('.editor-title').textContent = note.title;
+            // Update the save status for this specific pane
+            paneEl.querySelector('.save-status').textContent = `Saved`;
+        }
+        
+        this.saveNotes();
+        this.backlinksManager.updateNotes(this.notes);
+        this.graphManager.updateNotes(this.notes);
+        this.updateRightSidebar();
+        
+        // Only update save status if we didn't re-render all panes
+        if (oldTitle === note.title) {
+            // Save status was already updated above
+        } else {
+            // After renderAllPanes(), we need to find the new pane element
+            const newPaneEl = document.querySelector(`.editor-container[data-pane-id="${paneId}"]`);
+            if (newPaneEl) {
+                newPaneEl.querySelector('.save-status').textContent = `Saved`;
+            }
         }
     }
-}
 
     updatePaneContent(paneEl, note) {
         this.updatePanePreview(paneEl, note);
@@ -347,10 +347,6 @@ class PKMApp {
         const content = note.getContentWithoutMetadata();
         const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
 
-        // Graph Visualization
-        const graphContainer = document.createElement('div');
-        graphContainer.className = 'graph-container';
-        
         // Backlinks
         const backlinks = this.backlinksManager.getBacklinks(note.title);
         let backlinksHTML = `<div class="backlinks-list">
@@ -371,7 +367,10 @@ class PKMApp {
                 <div class="word-count-display">${wordCount} words</div>
             </div>
             <div class="sidebar-section">
-                <div class="sidebar-section-header">Link Graph</div>
+                <div class="sidebar-section-header">
+                    Link Graph
+                    <button class="btn" id="exportGraphBtn" style="float: right; padding: 2px 6px; font-size: 10px;">Export CSV</button>
+                </div>
                 <div class="graph-container" id="graphContainer"></div>
             </div>
             <div class="sidebar-section">
@@ -384,6 +383,15 @@ class PKMApp {
         const graphContainerEl = container.querySelector('#graphContainer');
         this.graphManager.createGraph(graphContainerEl, note.id);
 
+        // Bind export button event
+        const exportBtn = container.querySelector('#exportGraphBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.exportNetworkData(note.id);
+            });
+        }
+
         // Re-bind events for the new backlinks
         container.querySelectorAll('.backlink-item').forEach(item => {
             item.addEventListener('click', (e) => {
@@ -393,61 +401,93 @@ class PKMApp {
         });
     }
 
+    // --- Network Data Export Method ---
+    exportNetworkData(noteId) {
+        const networkData = this.graphManager.exportNetworkCSV(noteId, true); // Include metadata
+        if (!networkData) return;
+
+        const note = this.notes[noteId];
+        const timestamp = new Date().toISOString().split('T')[0];
+        const safeTitle = note.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+
+        // Download all three CSV files with staggered timing
+        this.graphManager.downloadCSV(
+            networkData.edgesCSV, 
+            `${safeTitle}_network_edges_${timestamp}.csv`
+        );
+
+        setTimeout(() => {
+            this.graphManager.downloadCSV(
+                networkData.nodesCSV, 
+                `${safeTitle}_network_nodes_${timestamp}.csv`
+            );
+        }, 100);
+
+        setTimeout(() => {
+            this.graphManager.downloadCSV(
+                networkData.statsCSV, 
+                `${safeTitle}_network_stats_${timestamp}.csv`
+            );
+        }, 200);
+
+        // Show user feedback
+        setTimeout(() => {
+            alert(`Network data exported!\n\nDownloaded 3 files:\n• Edges (connections)\n• Nodes (notes)\n• Statistics (network metrics)`);
+        }, 300);
+    }
 
     // --- Context Menu & Note List Sidebar ---
 
     renderNoteList() {
-    const noteList = document.getElementById('noteList');
-    const sortedNotes = Object.values(this.notes).sort((a, b) => b.modified - a.modified);
-    
-    // Update the innerHTML
-    noteList.innerHTML = sortedNotes.map(note => `
-        <div class="note-item" data-note-id="${note.id}">
-            <div class="note-title">${note.title}</div>
-            <div class="note-preview">${note.getPreview()}</div>
-        </div>`).join('');
+        const noteList = document.getElementById('noteList');
+        const sortedNotes = Object.values(this.notes).sort((a, b) => b.modified - a.modified);
+        
+        // Update the innerHTML
+        noteList.innerHTML = sortedNotes.map(note => `
+            <div class="note-item" data-note-id="${note.id}">
+                <div class="note-title">${note.title}</div>
+                <div class="note-preview">${note.getPreview()}</div>
+            </div>`).join('');
 
-    // Force a reflow to ensure DOM is updated immediately
-    noteList.offsetHeight; // This forces the browser to recalculate layout
+        // Force a reflow to ensure DOM is updated immediately
+        noteList.offsetHeight; // This forces the browser to recalculate layout
 
-    // Re-bind events to the new elements
-    noteList.querySelectorAll('.note-item').forEach(item => {
-        item.addEventListener('click', () => this.openNote(item.dataset.noteId));
-        item.addEventListener('contextmenu', (e) => { 
-            e.preventDefault(); 
-            this.showContextMenu(e, item.dataset.noteId); 
+        // Re-bind events to the new elements
+        noteList.querySelectorAll('.note-item').forEach(item => {
+            item.addEventListener('click', () => this.openNote(item.dataset.noteId));
+            item.addEventListener('contextmenu', (e) => { 
+                e.preventDefault(); 
+                this.showContextMenu(e, item.dataset.noteId); 
+            });
         });
-    });
-    
-    // Use requestAnimationFrame to ensure DOM is fully rendered before updating active state
-    requestAnimationFrame(() => {
-        this.updateActiveNoteInSidebar();
-    });
-}
-
-// 
-updateActiveNoteInSidebar() {
-    // Force a small delay to ensure DOM is ready
-    requestAnimationFrame(() => {
-        // First, remove 'active' class from any currently highlighted item.
-        document.querySelectorAll('.note-item.active').forEach(activeItem => {
-            activeItem.classList.remove('active');
+        
+        // Use requestAnimationFrame to ensure DOM is fully rendered before updating active state
+        requestAnimationFrame(() => {
+            this.updateActiveNoteInSidebar();
         });
-    
-        // Then, find the correct note and add the 'active' class.
-        const focusedPane = this.getPane(this.focusedPaneId);
-        if (focusedPane) {
-            const newActiveItem = document.querySelector(`.note-item[data-note-id="${focusedPane.noteId}"]`);
-            if (newActiveItem) {
-                newActiveItem.classList.add('active');
-                
-                // Force another reflow to ensure the visual update happens
-                newActiveItem.offsetHeight;
+    }
+
+    updateActiveNoteInSidebar() {
+        // Force a small delay to ensure DOM is ready
+        requestAnimationFrame(() => {
+            // First, remove 'active' class from any currently highlighted item.
+            document.querySelectorAll('.note-item.active').forEach(activeItem => {
+                activeItem.classList.remove('active');
+            });
+        
+            // Then, find the correct note and add the 'active' class.
+            const focusedPane = this.getPane(this.focusedPaneId);
+            if (focusedPane) {
+                const newActiveItem = document.querySelector(`.note-item[data-note-id="${focusedPane.noteId}"]`);
+                if (newActiveItem) {
+                    newActiveItem.classList.add('active');
+                    
+                    // Force another reflow to ensure the visual update happens
+                    newActiveItem.offsetHeight;
+                }
             }
-        }
-    });
-}
-
+        });
+    }
 
     showContextMenu(event, noteId) {
         this.hideContextMenu();
@@ -558,185 +598,190 @@ updateActiveNoteInSidebar() {
     
     importFiles() { document.getElementById('fileInput').click(); }
     
+    handleFileImport(event) {
+        const files = event.target.files;
+        if (!files || files.length === 0) return;
 
-handleFileImport(event) {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    Array.from(files).forEach(file => {
-        if (file.type === 'text/markdown' || file.type === 'text/plain' || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const content = e.target.result;
-                
-                // Extract title from filename (remove extension)
-                let title = file.name.replace(/\.(md|txt)$/i, '');
-                
-                // Try to extract title from content if it has frontmatter
-                const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
-                if (yamlMatch) {
-                    const yamlContent = yamlMatch[1];
-                    const titleMatch = yamlContent.match(/^title:\s*(.+)$/m);
-                    if (titleMatch) {
-                        title = titleMatch[1].replace(/^['"]|['"]$/g, ''); // Remove quotes
+        Array.from(files).forEach(file => {
+            if (file.type === 'text/markdown' || file.type === 'text/plain' || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    
+                    // Extract title from filename (remove extension)
+                    let title = file.name.replace(/\.(md|txt)$/i, '');
+                    
+                    // Try to extract title from content if it has frontmatter
+                    const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
+                    if (yamlMatch) {
+                        const yamlContent = yamlMatch[1];
+                        const titleMatch = yamlContent.match(/^title:\s*(.+)$/m);
+                        if (titleMatch) {
+                            title = titleMatch[1].replace(/^['"]|['"]$/g, ''); // Remove quotes
+                        }
                     }
-                }
 
-                // Create new note with imported content
-                const note = new Note(title, content);
-                this.notes[note.id] = note;
-                
-                console.log(`Imported note: ${title}`);
-            };
-            reader.readAsText(file);
-        } else {
-            alert(`Unsupported file type: ${file.name}. Only .md and .txt files are supported.`);
-        }
-    });
-
-    // Update UI after all files are processed
-    setTimeout(() => {
-        this.backlinksManager.updateNotes(this.notes);
-        this.graphManager.updateNotes(this.notes);
-        this.saveNotes();
-        this.renderNoteList();
-        this.updateRightSidebar();
-    }, 100);
-
-    // Clear the file input
-    event.target.value = '';
-}
-
-exportNotes() {
-    // Show export options
-    const exportMenu = document.createElement('div');
-    exportMenu.className = 'context-menu';
-    exportMenu.style.position = 'fixed';
-    exportMenu.style.top = '50%';
-    exportMenu.style.left = '50%';
-    exportMenu.style.transform = 'translate(-50%, -50%)';
-    exportMenu.style.zIndex = '10000';
-    
-    exportMenu.innerHTML = `
-        <div style="padding: 8px 0; font-weight: 600; border-bottom: 1px solid var(--border); margin-bottom: 8px;">Export Options</div>
-        <button class="context-menu-item" data-action="export-json">📄 Export as JSON</button>
-        <button class="context-menu-item" data-action="export-markdown">📝 Export as Markdown Files</button>
-        <button class="context-menu-item" data-action="export-single-md">📋 Export as Single Markdown</button>
-        <div class="context-menu-separator"></div>
-        <button class="context-menu-item" data-action="cancel">❌ Cancel</button>
-    `;
-    
-    document.body.appendChild(exportMenu);
-    
-    // Add event listeners
-    exportMenu.querySelector('[data-action="export-json"]').addEventListener('click', () => {
-        this.exportAsJSON();
-        exportMenu.remove();
-    });
-    
-    exportMenu.querySelector('[data-action="export-markdown"]').addEventListener('click', () => {
-        this.exportAsMarkdownFiles();
-        exportMenu.remove();
-    });
-    
-    exportMenu.querySelector('[data-action="export-single-md"]').addEventListener('click', () => {
-        this.exportAsSingleMarkdown();
-        exportMenu.remove();
-    });
-    
-    exportMenu.querySelector('[data-action="cancel"]').addEventListener('click', () => {
-        exportMenu.remove();
-    });
-    
-    // Close on outside click
-    setTimeout(() => {
-        document.addEventListener('click', function closeExportMenu(e) {
-            if (!exportMenu.contains(e.target)) {
-                exportMenu.remove();
-                document.removeEventListener('click', closeExportMenu);
+                    // Create new note with imported content
+                    const note = new Note(title, content);
+                    this.notes[note.id] = note;
+                    
+                    console.log(`Imported note: ${title}`);
+                };
+                reader.readAsText(file);
+            } else {
+                alert(`Unsupported file type: ${file.name}. Only .md and .txt files are supported.`);
             }
         });
-    }, 100);
-}
 
-exportAsJSON() {
-    const exportData = {
-        notes: this.notes,
-        exported: new Date().toISOString(),
-        version: '1.0'
-    };
-    
-    const dataStr = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pkm-notes-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
-
-exportAsMarkdownFiles() {
-    if (Object.keys(this.notes).length === 0) {
-        alert('No notes to export!');
-        return;
-    }
-
-    // Create a zip-like structure by downloading each file individually
-    // Note: For a real zip, look at eg JSZip
-    Object.values(this.notes).forEach((note, index) => {
+        // Update UI after all files are processed
         setTimeout(() => {
-            const blob = new Blob([note.content], { type: 'text/markdown' });
-            const url = URL.createObjectURL(blob);
-            
-            const a = document.createElement('a');
-            a.href = url;
-            // Sanitize filename
-            const filename = note.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-            a.download = `${filename}.md`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }, index * 100); // Stagger downloads to avoid browser blocking
-    });
-    
-    alert(`Downloading ${Object.keys(this.notes).length} markdown files...`);
-}
+            this.backlinksManager.updateNotes(this.notes);
+            this.graphManager.updateNotes(this.notes);
+            this.saveNotes();
+            this.renderNoteList();
+            this.updateRightSidebar();
+        }, 100);
 
-exportAsSingleMarkdown() {
-    if (Object.keys(this.notes).length === 0) {
-        alert('No notes to export!');
-        return;
+        // Clear the file input
+        event.target.value = '';
     }
 
-    const sortedNotes = Object.values(this.notes).sort((a, b) => b.modified - a.modified);
-    
-    let combinedContent = `# PKM Notes Export\n\nExported on: ${new Date().toLocaleString()}\n\n---\n\n`;
-    
-    sortedNotes.forEach(note => {
-        combinedContent += `# ${note.title}\n\n`;
-        combinedContent += `*Created: ${new Date(note.created).toLocaleString()}*\n`;
-        combinedContent += `*Modified: ${new Date(note.modified).toLocaleString()}*\n\n`;
-        combinedContent += note.getContentWithoutMetadata();
-        combinedContent += `\n\n---\n\n`;
-    });
-    
-    const blob = new Blob([combinedContent], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pkm-notes-combined-${new Date().toISOString().split('T')[0]}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
-    toggleTheme() { this.settings.theme = this.settings.theme === 'light' ? 'dark' : 'light'; this.saveSettings(); this.setupTheme(); }
+    exportNotes() {
+        // Show export options
+        const exportMenu = document.createElement('div');
+        exportMenu.className = 'context-menu';
+        exportMenu.style.position = 'fixed';
+        exportMenu.style.top = '50%';
+        exportMenu.style.left = '50%';
+        exportMenu.style.transform = 'translate(-50%, -50%)';
+        exportMenu.style.zIndex = '10000';
+        
+        exportMenu.innerHTML = `
+            <div style="padding: 8px 0; font-weight: 600; border-bottom: 1px solid var(--border); margin-bottom: 8px;">Export Options</div>
+            <button class="context-menu-item" data-action="export-json">📄 Export as JSON</button>
+            <button class="context-menu-item" data-action="export-markdown">📝 Export as Markdown Files</button>
+            <button class="context-menu-item" data-action="export-single-md">📋 Export as Single Markdown</button>
+            <div class="context-menu-separator"></div>
+            <button class="context-menu-item" data-action="cancel">❌ Cancel</button>
+        `;
+        
+        document.body.appendChild(exportMenu);
+        
+        // Add event listeners
+        exportMenu.querySelector('[data-action="export-json"]').addEventListener('click', () => {
+            this.exportAsJSON();
+            exportMenu.remove();
+        });
+        
+        exportMenu.querySelector('[data-action="export-markdown"]').addEventListener('click', () => {
+            this.exportAsMarkdownFiles();
+            exportMenu.remove();
+        });
+        
+        exportMenu.querySelector('[data-action="export-single-md"]').addEventListener('click', () => {
+            this.exportAsSingleMarkdown();
+            exportMenu.remove();
+        });
+        
+        exportMenu.querySelector('[data-action="cancel"]').addEventListener('click', () => {
+            exportMenu.remove();
+        });
+        
+        // Close on outside click
+        setTimeout(() => {
+            document.addEventListener('click', function closeExportMenu(e) {
+                if (!exportMenu.contains(e.target)) {
+                    exportMenu.remove();
+                    document.removeEventListener('click', closeExportMenu);
+                }
+            });
+        }, 100);
+    }
+
+    exportAsJSON() {
+        const exportData = {
+            notes: this.notes,
+            exported: new Date().toISOString(),
+            version: '1.0'
+        };
+        
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pkm-notes-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    exportAsMarkdownFiles() {
+        if (Object.keys(this.notes).length === 0) {
+            alert('No notes to export!');
+            return;
+        }
+
+        // Create a zip-like structure by downloading each file individually
+        // Note: For a real zip, look at eg JSZip
+        Object.values(this.notes).forEach((note, index) => {
+            setTimeout(() => {
+                const blob = new Blob([note.content], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                // Sanitize filename
+                const filename = note.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                a.download = `${filename}.md`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, index * 100); // Stagger downloads to avoid browser blocking
+        });
+        
+        alert(`Downloading ${Object.keys(this.notes).length} markdown files...`);
+    }
+
+    exportAsSingleMarkdown() {
+        if (Object.keys(this.notes).length === 0) {
+            alert('No notes to export!');
+            return;
+        }
+
+        const sortedNotes = Object.values(this.notes).sort((a, b) => b.modified - a.modified);
+        
+        let combinedContent = `# PKM Notes Export\n\nExported on: ${new Date().toLocaleString()}\n\n---\n\n`;
+        
+        sortedNotes.forEach(note => {
+            combinedContent += `# ${note.title}\n\n`;
+            combinedContent += `*Created: ${new Date(note.created).toLocaleString()}*\n`;
+            combinedContent += `*Modified: ${new Date(note.modified).toLocaleString()}*\n\n`;
+            combinedContent += note.getContentWithoutMetadata();
+            combinedContent += `\n\n---\n\n`;
+        });
+        
+        const blob = new Blob([combinedContent], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pkm-notes-combined-${new Date().toISOString().split('T')[0]}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    toggleTheme() { 
+        this.settings.theme = this.settings.theme === 'light' ? 'dark' : 'light'; 
+        this.saveSettings(); 
+        this.setupTheme(); 
+    }
+
     searchNotes(query) {
         document.querySelectorAll('.note-item').forEach(item => {
             const note = this.notes[item.dataset.noteId];
