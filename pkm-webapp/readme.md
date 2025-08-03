@@ -35,6 +35,14 @@ This is a **toy** that I intend to use with students to introduce ideas of perso
   - Single combined markdown file
 - Preserve frontmatter and metadata during import/export
 
+### Wikilink Connection Graph Export
+- Export as nodes and edges csv describing the interconnections in your notes
+- Network statistics calculated include **Betweeness Centrality** and **Community Detection**.
+  - What This Reveals About Your Notes
+    - High betweenness centrality notes = Your most important conceptual bridges
+    - Communities = Natural topic clusters in your knowledge
+    - Modularity score = How well-separated your topics are
+
 ### Themes
 - Light and dark theme support
 - Theme preference is saved automatically
@@ -46,6 +54,7 @@ This is a **toy** that I intend to use with students to introduce ideas of perso
 3. Start writing in markdown format
 4. Use `[[Note Title]]` to link to other notes
 5. Right-click on notes in the sidebar for additional options
+6. You can create new notes by writing a wikilink to a non-existing note; view in preview then click the wikilink to create 
 
 ### Block Embeds
 
