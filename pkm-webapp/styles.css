@@ -187,38 +187,100 @@ body {
     border-right: none;
 }
 
-/* Focused Pane Style */
 .editor-container.focused {
     border-right-color: var(--primary);
-    border-left: 1px solid var(--primary); /* Add left border for focused pane */
+    border-left: 2px solid var(--primary);
+    box-shadow: 0 0 0 1px var(--primary), 0 4px 12px rgba(37, 99, 235, 0.1);
+    background: var(--background);
+    position: relative;
 }
+
 .editor-container.focused:first-child {
-    border-left: none; /* Don't show left border if it's the first pane */
+    border-left: 2px solid var(--primary);
 }
 
-.editor-header {
+/* Focused pane header styling */
+.editor-container.focused .editor-header {
+    background: linear-gradient(135deg, var(--primary), rgba(37, 99, 235, 0.8));
+    color: white;
+    position: relative;
+}
+
+.editor-container.focused .editor-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--warning);
+    box-shadow: 0 0 8px var(--warning);
+}
+
+.editor-container.focused .editor-title {
+    color: white;
+    font-weight: 600;
+}
+
+.editor-container.focused .mode-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.editor-container.focused .mode-btn.active {
+    background: white;
+    color: var(--primary);
+    border-color: white;
+}
+
+.editor-container.focused .mode-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.editor-container.focused .close-pane-btn {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.editor-container.focused .close-pane-btn:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Subtle focus indicator on textarea */
+.editor-container.focused .editor-textarea {
+    border-left: 3px solid var(--primary);
+    background: var(--background);
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .editor-container.focused {
+    box-shadow: 0 0 0 1px var(--primary), 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+[data-theme="dark"] .editor-container.focused .editor-header {
+    background: linear-gradient(135deg, var(--primary), rgba(59, 130, 246, 0.8));
+}
+
+/* Optional: Subtle animation when focus changes */
+.editor-container {
+    transition: all 0.2s ease-in-out;
+}
+
+.editor-container.focused {
+    transform: translateY(-1px);
+}
+
+/* Alternative: More subtle approach */
+.editor-container.focused-subtle {
+    border-left: 4px solid var(--primary);
+    background: linear-gradient(to right, rgba(37, 99, 235, 0.02), transparent);
+}
+
+.editor-container.focused-subtle .editor-header {
     background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.editor-title-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    overflow: hidden;
-}
-
-.editor-title {
-    font-weight: 500;
-    font-size: 16px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    border-bottom: 2px solid var(--primary);
 }
 
 .close-pane-btn {
@@ -650,3 +712,4 @@ body {
     z-index: 9999 !important;
     opacity: 1 !important;
 }
+
